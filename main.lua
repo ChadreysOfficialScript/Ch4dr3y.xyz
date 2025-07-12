@@ -10,6 +10,8 @@ local legit = Window:Page({ Name = "Visuals" })
 local Test = legit:Section({ Name = "Visuals" })
 local worldSection = legit:Section({ Name = "world", Side = "Right" })
 local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" })
+local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
+local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 
 local Settings = {
     BoxEnabled = false,
@@ -594,6 +596,315 @@ game.Players.PlayerAdded:Connect(function(player)
         end
     end
 end)
+
+local corpsesFolder = workspace:WaitForChild("Corpses")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+
+local corpseESPEnabled = false
+local showNames = false
+local showDistance = false
+local espConnections = {}
+
+local function removeESP(model)
+    local highlight = model:FindFirstChild("CorpseHighlight")
+    if highlight then highlight:Destroy() end
+
+    local billboardGui = model:FindFirstChild("CorpseESP")
+    if billboardGui then billboardGui:Destroy() end
+
+    if espConnections[model] then
+        espConnections[model]:Disconnect()
+        espConnections[model] = nil
+    end
+end
+
+local function createHighlight(model)
+    if not model:FindFirstChild("CorpseHighlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "CorpseHighlight"
+        highlight.Adornee = model
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = model
+    end
+end
+
+local function createNameDistance(model)
+    if model:FindFirstChild("CorpseESP") then return end
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "CorpseESP"
+    billboardGui.Adornee = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    billboardGui.Size = UDim2.new(0, 150, 0, 50)
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Parent = model
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 18
+    textLabel.Parent = billboardGui
+
+    espConnections[model] = RunService.Heartbeat:Connect(function()
+        if not model or not model.Parent then
+            if espConnections[model] then
+                espConnections[model]:Disconnect()
+                espConnections[model] = nil
+            end
+            if billboardGui then billboardGui:Destroy() end
+            return
+        end
+
+        local character = localPlayer.Character
+        if character and character.PrimaryPart and billboardGui.Adornee then
+            local distance = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
+            local textParts = {}
+
+            if showNames then
+                table.insert(textParts, model.Name)
+            end
+            if showDistance then
+                table.insert(textParts, string.format("%.1f studs", distance))
+            end
+
+            textLabel.Text = table.concat(textParts, "\n")
+
+            if #textParts == 0 then
+                textLabel.Text = ""
+            end
+        else
+            textLabel.Text = showNames and model.Name or ""
+        end
+    end)
+end
+
+local function updateCorpseESP(enabled)
+    for _, corpse in pairs(corpsesFolder:GetChildren()) do
+        if corpse:IsA("Model") then
+            if enabled then
+                createHighlight(corpse)
+
+                local billboard = corpse:FindFirstChild("CorpseESP")
+                if showNames or showDistance then
+                    if not billboard then
+                        createNameDistance(corpse)
+                    end
+                elseif billboard then
+                    billboard:Destroy()
+                    if espConnections[corpse] then
+                        espConnections[corpse]:Disconnect()
+                        espConnections[corpse] = nil
+                    end
+                end
+            else
+                removeESP(corpse)
+            end
+        end
+    end
+end
+
+corpsesFolder.ChildAdded:Connect(function(newCorpse)
+    if newCorpse:IsA("Model") and corpseESPEnabled then
+        createHighlight(newCorpse)
+        if showNames or showDistance then
+            createNameDistance(newCorpse)
+        end
+    end
+end)
+
+CorpseSection:Toggle({
+    Name = "Corpse ESP",
+    Flag = "CorpseESP",
+    Callback = function(state)
+        corpseESPEnabled = state
+        updateCorpseESP(corpseESPEnabled)
+    end
+})
+
+CorpseSection:Toggle({
+    Name = "Names",
+    Flag = "CorpseShowNames",
+    Callback = function(state)
+        showNames = state
+        if corpseESPEnabled then
+            updateCorpseESP(true)
+        end
+    end
+})
+
+CorpseSection:Toggle({
+    Name = "Distance",
+    Flag = "CorpseShowDistance",
+    Callback = function(state)
+        showDistance = state
+        if corpseESPEnabled then
+            updateCorpseESP(true)
+        end
+    end
+})
+
+local vehiclesFolder = workspace:WaitForChild("Vehicles")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+
+local vehicleESPEnabled = false
+local vehicleShowNames = false
+local vehicleShowDistance = false
+local espConnectionsVehicles = {}
+
+local function removeVehicleESP(model)
+    local highlight = model:FindFirstChild("VehicleHighlight")
+    if highlight then highlight:Destroy() end
+
+    local billboardGui = model:FindFirstChild("VehicleESP")
+    if billboardGui then billboardGui:Destroy() end
+
+    if espConnectionsVehicles[model] then
+        espConnectionsVehicles[model]:Disconnect()
+        espConnectionsVehicles[model] = nil
+    end
+end
+
+local function createVehicleHighlight(model)
+    if not model:FindFirstChild("VehicleHighlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "VehicleHighlight"
+        highlight.Adornee = model
+        highlight.FillColor = Color3.fromRGB(0, 0, 255)
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = model
+    end
+end
+
+local function createVehicleNameDistance(model)
+    if model:FindFirstChild("VehicleESP") then return end
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "VehicleESP"
+    billboardGui.Adornee = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    billboardGui.Size = UDim2.new(0, 150, 0, 50)
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Parent = model
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 18
+    textLabel.Parent = billboardGui
+
+    espConnectionsVehicles[model] = RunService.Heartbeat:Connect(function()
+        if not model or not model.Parent then
+            if espConnectionsVehicles[model] then
+                espConnectionsVehicles[model]:Disconnect()
+                espConnectionsVehicles[model] = nil
+            end
+            if billboardGui then billboardGui:Destroy() end
+            return
+        end
+
+        local character = localPlayer.Character
+        if character and character.PrimaryPart and billboardGui.Adornee then
+            local distance = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
+            local textParts = {}
+
+            if vehicleShowNames then
+                table.insert(textParts, model.Name)
+            end
+            if vehicleShowDistance then
+                table.insert(textParts, string.format("%.1f studs", distance))
+            end
+
+            textLabel.Text = table.concat(textParts, "\n")
+
+            if #textParts == 0 then
+                textLabel.Text = ""
+            end
+        else
+            textLabel.Text = vehicleShowNames and model.Name or ""
+        end
+    end)
+end
+
+local function updateVehicleESP(enabled)
+    for _, vehicle in pairs(vehiclesFolder:GetChildren()) do
+        if vehicle:IsA("Model") then
+            if enabled then
+                createVehicleHighlight(vehicle)
+
+                local billboard = vehicle:FindFirstChild("VehicleESP")
+                if vehicleShowNames or vehicleShowDistance then
+                    if not billboard then
+                        createVehicleNameDistance(vehicle)
+                    end
+                elseif billboard then
+                    billboard:Destroy()
+                    if espConnectionsVehicles[vehicle] then
+                        espConnectionsVehicles[vehicle]:Disconnect()
+                        espConnectionsVehicles[vehicle] = nil
+                    end
+                end
+            else
+                removeVehicleESP(vehicle)
+            end
+        end
+    end
+end
+
+vehiclesFolder.ChildAdded:Connect(function(newVehicle)
+    if newVehicle:IsA("Model") and vehicleESPEnabled then
+        createVehicleHighlight(newVehicle)
+        if vehicleShowNames or vehicleShowDistance then
+            createVehicleNameDistance(newVehicle)
+        end
+    end
+end)
+
+VehicleSection:Toggle({
+    Name = "Vehicle",
+    Flag = "VehicleESP",
+    Callback = function(state)
+        vehicleESPEnabled = state
+        updateVehicleESP(vehicleESPEnabled)
+    end
+})
+
+VehicleSection:Toggle({
+    Name = "Names",
+    Flag = "VehicleShowNames",
+    Callback = function(state)
+        vehicleShowNames = state
+        if vehicleESPEnabled then
+            updateVehicleESP(true)
+        end
+    end
+})
+
+VehicleSection:Toggle({
+    Name = "Distance",
+    Flag = "VehicleShowDistance",
+    Callback = function(state)
+        vehicleShowDistance = state
+        if vehicleESPEnabled then
+            updateVehicleESP(true)
+        end
+    end
+})
 
 local combat = Window:Page({ Name = "Combat" })
 local headExpander = combat:Section({ Name = "Head Expander" })
