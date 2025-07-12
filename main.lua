@@ -613,10 +613,8 @@ local espConnections = {}
 local function removeESP(model)
     local highlight = model:FindFirstChild("CorpseHighlight")
     if highlight then highlight:Destroy() end
-
     local billboardGui = model:FindFirstChild("CorpseESP")
     if billboardGui then billboardGui:Destroy() end
-
     if espConnections[model] then
         espConnections[model]:Disconnect()
         espConnections[model] = nil
@@ -629,7 +627,6 @@ end
 
 local function createHighlight(model)
     if isIgnoredCorpse(model) then return end
-
     if not model:FindFirstChild("CorpseHighlight") then
         local highlight = Instance.new("Highlight")
         highlight.Name = "CorpseHighlight"
@@ -644,58 +641,62 @@ end
 
 local function createNameDistance(model)
     if isIgnoredCorpse(model) then return end
-    if model:FindFirstChild("CorpseESP") then return end
-
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "CorpseESP"
-    billboardGui.Adornee = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-    billboardGui.Size = UDim2.new(0, 150, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-    billboardGui.AlwaysOnTop = true
-    billboardGui.Parent = model
-
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 18
-    textLabel.Parent = billboardGui
-
-    espConnections[model] = RunService.Heartbeat:Connect(function()
-        if not model or not model.Parent then
-            if espConnections[model] then
-                espConnections[model]:Disconnect()
-                espConnections[model] = nil
+    local function tryAttach()
+        local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if not primary then return false end
+        if model:FindFirstChild("CorpseESP") then return true end
+        local billboardGui = Instance.new("BillboardGui")
+        billboardGui.Name = "CorpseESP"
+        billboardGui.Adornee = primary
+        billboardGui.Size = UDim2.new(0, 150, 0, 40)
+        billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+        billboardGui.AlwaysOnTop = true
+        billboardGui.Parent = model
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.TextStrokeTransparency = 0
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextSize = 16
+        textLabel.TextWrapped = true
+        textLabel.TextXAlignment = Enum.TextXAlignment.Center
+        textLabel.TextYAlignment = Enum.TextYAlignment.Center
+        textLabel.Parent = billboardGui
+        espConnections[model] = RunService.Heartbeat:Connect(function()
+            if not model or not model.Parent or not billboardGui.Adornee then
+                if espConnections[model] then
+                    espConnections[model]:Disconnect()
+                    espConnections[model] = nil
+                end
+                if billboardGui then billboardGui:Destroy() end
+                return
             end
-            if billboardGui then billboardGui:Destroy() end
-            return
-        end
-
-        local character = localPlayer.Character
-        if character and character.PrimaryPart and billboardGui.Adornee then
-            local distanceStuds = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
-            local distanceMeters = distanceStuds * 0.28
-            local textParts = {}
-
-            if showNames then
-                table.insert(textParts, model.Name)
+            local character = localPlayer.Character
+            local primaryPart = character and character.PrimaryPart
+            if primaryPart then
+                local distanceStuds = (primaryPart.Position - billboardGui.Adornee.Position).Magnitude
+                local distanceMeters = distanceStuds * 0.28
+                local textParts = {}
+                if showNames then
+                    table.insert(textParts, model.Name)
+                end
+                if showDistance then
+                    table.insert(textParts, string.format("%.1f m", distanceMeters))
+                end
+                textLabel.Text = #textParts > 0 and table.concat(textParts, "\n") or ""
+            else
+                textLabel.Text = showNames and model.Name or ""
             end
-            if showDistance then
-                table.insert(textParts, string.format("%.1f m", distanceMeters))
-            end
-
-            textLabel.Text = table.concat(textParts, "\n")
-
-            if #textParts == 0 then
-                textLabel.Text = ""
-            end
-        else
-            textLabel.Text = showNames and model.Name or ""
-        end
-    end)
+        end)
+        return true
+    end
+    local attempts = 0
+    while not tryAttach() and attempts < 10 do
+        attempts += 1
+        task.wait(0.2)
+    end
 end
 
 local function updateCorpseESP(enabled)
@@ -703,18 +704,10 @@ local function updateCorpseESP(enabled)
         if corpse:IsA("Model") and not isIgnoredCorpse(corpse) then
             if enabled then
                 createHighlight(corpse)
-
-                local billboard = corpse:FindFirstChild("CorpseESP")
                 if showNames or showDistance then
-                    if not billboard then
-                        createNameDistance(corpse)
-                    end
-                elseif billboard then
-                    billboard:Destroy()
-                    if espConnections[corpse] then
-                        espConnections[corpse]:Disconnect()
-                        espConnections[corpse] = nil
-                    end
+                    createNameDistance(corpse)
+                else
+                    removeESP(corpse)
                 end
             else
                 removeESP(corpse)
@@ -726,11 +719,18 @@ local function updateCorpseESP(enabled)
 end
 
 corpsesFolder.ChildAdded:Connect(function(newCorpse)
-    if newCorpse:IsA("Model") and corpseESPEnabled and not isIgnoredCorpse(newCorpse) then
-        createHighlight(newCorpse)
-        if showNames or showDistance then
-            createNameDistance(newCorpse)
-        end
+    if newCorpse:IsA("Model") then
+        task.defer(function()
+            pcall(function()
+                newCorpse:WaitForChild("PrimaryPart", 3)
+            end)
+            if corpseESPEnabled and not isIgnoredCorpse(newCorpse) then
+                createHighlight(newCorpse)
+                if showNames or showDistance then
+                    createNameDistance(newCorpse)
+                end
+            end
+        end)
     end
 end)
 
@@ -802,58 +802,68 @@ local function createVehicleHighlight(model)
 end
 
 local function createVehicleNameDistance(model)
-    if model:FindFirstChild("VehicleESP") then return end
+    local function tryAttach()
+        local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if not primary then return false end
 
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "VehicleESP"
-    billboardGui.Adornee = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-    billboardGui.Size = UDim2.new(0, 150, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-    billboardGui.AlwaysOnTop = true
-    billboardGui.Parent = model
+        if model:FindFirstChild("VehicleESP") then return true end
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 18
-    textLabel.Parent = billboardGui
+        local billboardGui = Instance.new("BillboardGui")
+        billboardGui.Name = "VehicleESP"
+        billboardGui.Adornee = primary
+        billboardGui.Size = UDim2.new(0, 150, 0, 50)
+        billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+        billboardGui.AlwaysOnTop = true
+        billboardGui.Parent = model
 
-    espConnectionsVehicles[model] = RunService.Heartbeat:Connect(function()
-        if not model or not model.Parent then
-            if espConnectionsVehicles[model] then
-                espConnectionsVehicles[model]:Disconnect()
-                espConnectionsVehicles[model] = nil
-            end
-            if billboardGui then billboardGui:Destroy() end
-            return
-        end
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.TextStrokeTransparency = 0
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextSize = 18
+        textLabel.Parent = billboardGui
 
-        local character = localPlayer.Character
-        if character and character.PrimaryPart and billboardGui.Adornee then
-            local distanceStuds = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
-            local distanceMeters = distanceStuds * 0.28
-            local textParts = {}
-
-            if vehicleShowNames then
-                table.insert(textParts, model.Name)
-            end
-            if vehicleShowDistance then
-                table.insert(textParts, string.format("%.1f m", distanceMeters))
+        espConnectionsVehicles[model] = RunService.Heartbeat:Connect(function()
+            if not model or not model.Parent or not billboardGui.Adornee then
+                if espConnectionsVehicles[model] then
+                    espConnectionsVehicles[model]:Disconnect()
+                    espConnectionsVehicles[model] = nil
+                end
+                if billboardGui then billboardGui:Destroy() end
+                return
             end
 
-            textLabel.Text = table.concat(textParts, "\n")
+            local character = localPlayer.Character
+            local primaryPart = character and character.PrimaryPart
+            if primaryPart then
+                local distanceStuds = (primaryPart.Position - billboardGui.Adornee.Position).Magnitude
+                local distanceMeters = distanceStuds * 0.28
+                local textParts = {}
 
-            if #textParts == 0 then
-                textLabel.Text = ""
+                if vehicleShowNames then
+                    table.insert(textParts, model.Name)
+                end
+                if vehicleShowDistance then
+                    table.insert(textParts, string.format("%.1f m", distanceMeters))
+                end
+
+                textLabel.Text = #textParts > 0 and table.concat(textParts, "\n") or ""
+            else
+                textLabel.Text = vehicleShowNames and model.Name or ""
             end
-        else
-            textLabel.Text = vehicleShowNames and model.Name or ""
-        end
-    end)
+        end)
+
+        return true
+    end
+
+    local attempts = 0
+    while not tryAttach() and attempts < 10 do
+        attempts += 1
+        task.wait(0.2)
+    end
 end
 
 local function updateVehicleESP(enabled)
@@ -882,11 +892,19 @@ local function updateVehicleESP(enabled)
 end
 
 vehiclesFolder.ChildAdded:Connect(function(newVehicle)
-    if newVehicle:IsA("Model") and vehicleESPEnabled then
-        createVehicleHighlight(newVehicle)
-        if vehicleShowNames or vehicleShowDistance then
-            createVehicleNameDistance(newVehicle)
-        end
+    if newVehicle:IsA("Model") then
+        task.defer(function()
+            pcall(function()
+                newVehicle:WaitForChild("PrimaryPart", 3)
+            end)
+
+            if vehicleESPEnabled and newVehicle and newVehicle.Parent then
+                createVehicleHighlight(newVehicle)
+                if vehicleShowNames or vehicleShowDistance then
+                    createVehicleNameDistance(newVehicle)
+                end
+            end
+        end)
     end
 end)
 
@@ -932,12 +950,10 @@ local showDistance = false
 local espConnections = {}
 
 local function removeESP(model)
-    local highlight = model:FindFirstChild("ZombieHighlight")
-    if highlight then highlight:Destroy() end
-
-    local billboardGui = model:FindFirstChild("ZombieESP")
-    if billboardGui then billboardGui:Destroy() end
-
+    local h = model:FindFirstChild("ZombieHighlight")
+    if h then h:Destroy() end
+    local b = model:FindFirstChild("ZombieESP")
+    if b then b:Destroy() end
     if espConnections[model] then
         espConnections[model]:Disconnect()
         espConnections[model] = nil
@@ -959,24 +975,28 @@ end
 
 local function createNameDistance(model)
     if model:FindFirstChild("ZombieESP") then return end
+    local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not part then return end
 
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "ZombieESP"
-    billboardGui.Adornee = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-    billboardGui.Size = UDim2.new(0, 150, 0, 50)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-    billboardGui.AlwaysOnTop = true
-    billboardGui.Parent = model
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "ZombieESP"
+    gui.Adornee = part
+    gui.Size = UDim2.new(0, 150, 0, 40)
+    gui.StudsOffset = Vector3.new(0, 3, 0)
+    gui.AlwaysOnTop = true
+    gui.Parent = model
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 18
-    textLabel.Parent = billboardGui
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextStrokeColor3 = Color3.new(0, 0, 0)
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.GothamBold
+    label.TextScaled = false
+    label.TextSize = 16
+    label.TextWrapped = true
+    label.Parent = gui
 
     espConnections[model] = RunService.Heartbeat:Connect(function()
         if not model or not model.Parent then
@@ -984,67 +1004,52 @@ local function createNameDistance(model)
                 espConnections[model]:Disconnect()
                 espConnections[model] = nil
             end
-            if billboardGui then billboardGui:Destroy() end
+            gui:Destroy()
             return
         end
-
-        local character = localPlayer.Character
-        if character and character.PrimaryPart and billboardGui.Adornee then
-            local distanceStuds = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
-            local distanceMeters = distanceStuds * 0.28
-            local textParts = {}
-
-            if showNames then
-                table.insert(textParts, model.Name)
-            end
-            if showDistance then
-                table.insert(textParts, string.format("%.1f m", distanceMeters))
-            end
-
-            textLabel.Text = table.concat(textParts, "\n")
-
-            if #textParts == 0 then
-                textLabel.Text = ""
-            end
+        local char = localPlayer.Character
+        if char and char.PrimaryPart and gui.Adornee then
+            local dist = (char.PrimaryPart.Position - gui.Adornee.Position).Magnitude * 0.28
+            local text = {}
+            if showNames then table.insert(text, model.Name) end
+            if showDistance then table.insert(text, string.format("%.1f m", dist)) end
+            label.Text = #text > 0 and table.concat(text, "\n") or ""
         else
-            textLabel.Text = showNames and model.Name or ""
+            label.Text = showNames and model.Name or ""
         end
     end)
 end
 
 local function updateZombieESP(enabled)
-    for _, zombie in pairs(zombiesFolder:GetChildren()) do
+    for _, zombie in ipairs(zombiesFolder:GetChildren()) do
         if zombie:IsA("Model") then
             if enabled then
                 createHighlight(zombie)
-
-                local billboard = zombie:FindFirstChild("ZombieESP")
                 if showNames or showDistance then
-                    if not billboard then
-                        createNameDistance(zombie)
-                    end
-                elseif billboard then
-                    billboard:Destroy()
-                    if espConnections[zombie] then
-                        espConnections[zombie]:Disconnect()
-                        espConnections[zombie] = nil
-                    end
+                    createNameDistance(zombie)
+                else
+                    removeESP(zombie)
                 end
             else
                 removeESP(zombie)
             end
-        else
-            removeESP(zombie)
         end
     end
 end
 
-zombiesFolder.ChildAdded:Connect(function(newZombie)
-    if newZombie:IsA("Model") and zombieESPEnabled then
-        createHighlight(newZombie)
-        if showNames or showDistance then
-            createNameDistance(newZombie)
-        end
+zombiesFolder.ChildAdded:Connect(function(zombie)
+    if zombie:IsA("Model") then
+        task.defer(function()
+            if not zombie.PrimaryPart then
+                zombie:WaitForChild("HumanoidRootPart", 3)
+            end
+            if zombieESPEnabled then
+                createHighlight(zombie)
+                if showNames or showDistance then
+                    createNameDistance(zombie)
+                end
+            end
+        end)
     end
 end)
 
@@ -1053,7 +1058,7 @@ ZombieSection:Toggle({
     Flag = "ZombieESP",
     Callback = function(state)
         zombieESPEnabled = state
-        updateZombieESP(zombieESPEnabled)
+        updateZombieESP(state)
     end
 })
 
@@ -1095,12 +1100,11 @@ local itemESPEnabled = false
 local showNames = false
 local showDistance = false
 local espConnections = {}
+local MAX_DISTANCE = 5000
 
 local function removeESP(part)
-    local billboardGui = part:FindFirstChild("ItemESP")
-    if billboardGui then
-        billboardGui:Destroy()
-    end
+    local gui = part:FindFirstChild("ItemESP")
+    if gui then gui:Destroy() end
     if espConnections[part] then
         espConnections[part]:Disconnect()
         espConnections[part] = nil
@@ -1110,23 +1114,25 @@ end
 local function createESP(part)
     if part:FindFirstChild("ItemESP") then return end
 
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "ItemESP"
-    billboardGui.Adornee = part
-    billboardGui.Size = UDim2.new(0, 100, 0, 40)
-    billboardGui.StudsOffset = Vector3.new(0, 2, 0)
-    billboardGui.AlwaysOnTop = true
-    billboardGui.Parent = part
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "ItemESP"
+    gui.Adornee = part
+    gui.Size = UDim2.new(0, 200, 0, 60)
+    gui.StudsOffset = Vector3.new(0, 2.5, 0)
+    gui.AlwaysOnTop = true
+    gui.Parent = part
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.new(0, 1, 0)
-    textLabel.TextStrokeTransparency = 0.5  -- Make text outline more visible
-    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)  -- Outline color (black)
-    textLabel.TextScaled = true
-    textLabel.Text = part.Name
-    textLabel.Parent = billboardGui
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(255, 0, 0)
+    label.TextStrokeColor3 = Color3.new(0, 0, 0)
+    label.TextStrokeTransparency = 0
+    label.Font = Enum.Font.Code
+    label.TextScaled = true
+    label.TextWrapped = true
+    label.Text = part.Name
+    label.Parent = gui
 
     espConnections[part] = RunService.Heartbeat:Connect(function()
         if not part or not part.Parent then
@@ -1135,25 +1141,25 @@ local function createESP(part)
         end
 
         local character = player.Character
-        if character and character.PrimaryPart and billboardGui.Adornee then
-            local distanceStuds = (character.PrimaryPart.Position - billboardGui.Adornee.Position).Magnitude
+        if character and character.PrimaryPart and gui.Adornee then
+            local distanceStuds = (character.PrimaryPart.Position - gui.Adornee.Position).Magnitude
+            if distanceStuds > MAX_DISTANCE then
+                label.Text = ""
+                return
+            end
             local distanceMeters = distanceStuds * 0.28
-            local textParts = {}
+            local lines = {}
 
             if showNames then
-                table.insert(textParts, part.Name)
+                table.insert(lines, part.Name)
             end
             if showDistance then
-                table.insert(textParts, string.format("%.1f m", distanceMeters))
+                table.insert(lines, string.format("%.1f m", distanceMeters))
             end
 
-            textLabel.Text = table.concat(textParts, "\n")
-
-            if #textParts == 0 then
-                textLabel.Text = ""
-            end
+            label.Text = #lines > 0 and table.concat(lines, "\n") or ""
         else
-            textLabel.Text = showNames and part.Name or ""
+            label.Text = showNames and part.Name or ""
         end
     end)
 end
@@ -1917,67 +1923,74 @@ worldSection:Toggle({
     Name = "Full Bright",
     Flag = "FullBrightToggle",
     Callback = function(enabled)
+        local Lighting = game:GetService("Lighting")
         _G.FullBrightEnabled = enabled
-        if not _G.FullBrightExecuted then
-            _G.FullBrightEnabled = enabled
-            _G.FullBrightExecuted = true
 
-            local Lighting = game:GetService("Lighting")
+        if not _G.FullBrightExecuted then
+            _G.FullBrightExecuted = true
 
             _G.NormalLightingSettings = {
                 Brightness = Lighting.Brightness,
                 ClockTime = Lighting.ClockTime,
                 FogEnd = Lighting.FogEnd,
                 GlobalShadows = Lighting.GlobalShadows,
-                Ambient = Lighting.Ambient
+                Ambient = Lighting.Ambient,
+                OutdoorAmbient = Lighting.OutdoorAmbient,
+                ColorShift_Bottom = Lighting.ColorShift_Bottom,
+                ColorShift_Top = Lighting.ColorShift_Top
             }
 
-            local function watch(prop, expected, setFunc)
+            local function applyFullBright()
+                Lighting.Brightness = 2
+                Lighting.ClockTime = 12
+                Lighting.FogEnd = 1e6
+                Lighting.GlobalShadows = false
+                Lighting.Ambient = Color3.new(1, 1, 1)
+                Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+                Lighting.ColorShift_Top = Color3.new(0, 0, 0)
+                Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
+            end
+
+            local function restoreLighting()
+                for prop, value in pairs(_G.NormalLightingSettings) do
+                    Lighting[prop] = value
+                end
+            end
+
+            for _, prop in ipairs({
+                "Brightness", "ClockTime", "FogEnd", "GlobalShadows", "Ambient",
+                "OutdoorAmbient", "ColorShift_Top", "ColorShift_Bottom"
+            }) do
                 Lighting:GetPropertyChangedSignal(prop):Connect(function()
-                    if Lighting[prop] ~= expected and Lighting[prop] ~= _G.NormalLightingSettings[prop] then
-                        _G.NormalLightingSettings[prop] = Lighting[prop]
-                        if not _G.FullBrightEnabled then
-                            repeat task.wait() until _G.FullBrightEnabled
-                        end
-                        setFunc()
+                    if _G.FullBrightEnabled then
+                        applyFullBright()
                     end
                 end)
             end
 
-            watch("Brightness", 1, function() Lighting.Brightness = 1 end)
-            watch("ClockTime", 12, function() Lighting.ClockTime = 12 end)
-            watch("FogEnd", 786543, function() Lighting.FogEnd = 786543 end)
-            watch("GlobalShadows", false, function() Lighting.GlobalShadows = false end)
-            watch("Ambient", Color3.fromRGB(178, 178, 178), function() Lighting.Ambient = Color3.fromRGB(178, 178, 178) end)
-
-            
-            Lighting.Brightness = 1
-            Lighting.ClockTime = 12
-            Lighting.FogEnd = 786543
-            Lighting.GlobalShadows = false
-            Lighting.Ambient = Color3.fromRGB(178, 178, 178)
-
-            
-            local latest = true
             task.spawn(function()
-                repeat task.wait() until _G.FullBrightEnabled
-                while task.wait() do
-                    if _G.FullBrightEnabled ~= latest then
-                        if not _G.FullBrightEnabled then
-                            for k, v in pairs(_G.NormalLightingSettings) do
-                                Lighting[k] = v
-                            end
-                        else
-                            Lighting.Brightness = 1
-                            Lighting.ClockTime = 12
-                            Lighting.FogEnd = 786543
-                            Lighting.GlobalShadows = false
-                            Lighting.Ambient = Color3.fromRGB(178, 178, 178)
-                        end
-                        latest = _G.FullBrightEnabled
+                while true do
+                    task.wait(1)
+                    if _G.FullBrightEnabled then
+                        applyFullBright()
                     end
                 end
             end)
+        end
+
+        if _G.FullBrightEnabled then
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 12
+            Lighting.FogEnd = 1e6
+            Lighting.GlobalShadows = false
+            Lighting.Ambient = Color3.new(1, 1, 1)
+            Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+            Lighting.ColorShift_Top = Color3.new(0, 0, 0)
+            Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
+        else
+            for prop, value in pairs(_G.NormalLightingSettings) do
+                Lighting[prop] = value
+            end
         end
     end
 })
