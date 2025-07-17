@@ -13,7 +13,6 @@ local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" }
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 local ZombieSection = legit:Section({ Name = "Zombie Esp", Side = "Right" })
-local ItemSection = legit:Section({ Name = "Item Esp", Side = "Left" })
 
 local Settings = {
     BoxEnabled = false,
@@ -39,9 +38,10 @@ Test:Toggle({
 }):Colorpicker({
     Default = Settings.BoxColor,
     Flag = "BoxColor",
-    Callback = function(col) Settings.BoxColor = col end
+    Callback = function(col)
+        Settings.BoxColor = col
+    end
 })
-
 Test:Toggle({
     Name = "Health",
     Flag = "HealthToggle",
@@ -57,7 +57,9 @@ Test:Toggle({
 }):Colorpicker({
     Default = Settings.NameColor,
     Flag = "NameColor",
-    Callback = function(color) Settings.NameColor = color end
+    Callback = function(col)
+        Settings.NameColor = col
+    end
 })
 
 Test:Toggle({
@@ -68,7 +70,9 @@ Test:Toggle({
 }):Colorpicker({
     Default = Settings.DistanceColor,
     Flag = "DistanceColor",
-    Callback = function(color) Settings.DistanceColor = color end
+    Callback = function(col)
+        Settings.DistanceColor = col
+    end
 })
 
 local playerHighlights = {}
@@ -131,264 +135,6 @@ Test:Toggle({
         for _, highlight in pairs(playerHighlights) do
             highlight.FillColor = HighlightColor
             highlight.OutlineColor = HighlightColor
-        end
-    end
-})
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
-
-local ESPConnections = {}
-
-local function DrawESP(plr)
-    repeat wait() until plr.Character and plr.Character:FindFirstChild("Humanoid")
-
-    local limbs = {}
-    local isR15 = (plr.Character.Humanoid.RigType == Enum.HumanoidRigType.R15)
-
-    local function DrawLine()
-        local line = Drawing.new("Line")
-        line.Visible = false
-        line.From = Vector2.new(0, 0)
-        line.To = Vector2.new(1, 1)
-        line.Color = Color3.fromRGB(255, 0, 0)
-        line.Thickness = 1
-        line.Transparency = 1
-        return line
-    end
-
-    if isR15 then
-        limbs = {
-            Head_UpperTorso = DrawLine(),
-            UpperTorso_LowerTorso = DrawLine(),
-            UpperTorso_LeftUpperArm = DrawLine(),
-            LeftUpperArm_LeftLowerArm = DrawLine(),
-            LeftLowerArm_LeftHand = DrawLine(),
-            UpperTorso_RightUpperArm = DrawLine(),
-            RightUpperArm_RightLowerArm = DrawLine(),
-            RightLowerArm_RightHand = DrawLine(),
-            LowerTorso_LeftUpperLeg = DrawLine(),
-            LeftUpperLeg_LeftLowerLeg = DrawLine(),
-            LeftLowerLeg_LeftFoot = DrawLine(),
-            LowerTorso_RightUpperLeg = DrawLine(),
-            RightUpperLeg_RightLowerLeg = DrawLine(),
-            RightLowerLeg_RightFoot = DrawLine(),
-        }
-    else
-        limbs = {
-            Head_Spine = DrawLine(),
-            Spine = DrawLine(),
-            LeftArm = DrawLine(),
-            LeftArm_UpperTorso = DrawLine(),
-            RightArm = DrawLine(),
-            RightArm_UpperTorso = DrawLine(),
-            LeftLeg = DrawLine(),
-            LeftLeg_LowerTorso = DrawLine(),
-            RightLeg = DrawLine(),
-            RightLeg_LowerTorso = DrawLine()
-        }
-    end
-
-    local function SetVisibility(state)
-        for _, line in pairs(limbs) do
-            line.Visible = state
-        end
-    end
-
-    local function RemoveLines()
-        for _, line in pairs(limbs) do
-            line:Remove()
-        end
-    end
-
-    local connection
-    if isR15 then
-        connection = RunService.RenderStepped:Connect(function()
-            local char = plr.Character
-            if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") and char.Humanoid.Health > 0 then
-                local _, onScreen = Camera:WorldToViewportPoint(char.HumanoidRootPart.Position)
-                if onScreen then
-                    local H = Camera:WorldToViewportPoint(char.Head.Position)
-                    local UT = Camera:WorldToViewportPoint(char.UpperTorso.Position)
-                    local LT = Camera:WorldToViewportPoint(char.LowerTorso.Position)
-                    local LUA = Camera:WorldToViewportPoint(char.LeftUpperArm.Position)
-                    local LLA = Camera:WorldToViewportPoint(char.LeftLowerArm.Position)
-                    local LH = Camera:WorldToViewportPoint(char.LeftHand.Position)
-                    local RUA = Camera:WorldToViewportPoint(char.RightUpperArm.Position)
-                    local RLA = Camera:WorldToViewportPoint(char.RightLowerArm.Position)
-                    local RH = Camera:WorldToViewportPoint(char.RightHand.Position)
-                    local LUL = Camera:WorldToViewportPoint(char.LeftUpperLeg.Position)
-                    local LLL = Camera:WorldToViewportPoint(char.LeftLowerLeg.Position)
-                    local LF = Camera:WorldToViewportPoint(char.LeftFoot.Position)
-                    local RUL = Camera:WorldToViewportPoint(char.RightUpperLeg.Position)
-                    local RLL = Camera:WorldToViewportPoint(char.RightLowerLeg.Position)
-                    local RF = Camera:WorldToViewportPoint(char.RightFoot.Position)
-
-                    limbs.Head_UpperTorso.From = Vector2.new(H.X, H.Y)
-                    limbs.Head_UpperTorso.To = Vector2.new(UT.X, UT.Y)
-                    limbs.UpperTorso_LowerTorso.From = Vector2.new(UT.X, UT.Y)
-                    limbs.UpperTorso_LowerTorso.To = Vector2.new(LT.X, LT.Y)
-                    limbs.UpperTorso_LeftUpperArm.From = Vector2.new(UT.X, UT.Y)
-                    limbs.UpperTorso_LeftUpperArm.To = Vector2.new(LUA.X, LUA.Y)
-                    limbs.LeftUpperArm_LeftLowerArm.From = Vector2.new(LUA.X, LUA.Y)
-                    limbs.LeftUpperArm_LeftLowerArm.To = Vector2.new(LLA.X, LLA.Y)
-                    limbs.LeftLowerArm_LeftHand.From = Vector2.new(LLA.X, LLA.Y)
-                    limbs.LeftLowerArm_LeftHand.To = Vector2.new(LH.X, LH.Y)
-                    limbs.UpperTorso_RightUpperArm.From = Vector2.new(UT.X, UT.Y)
-                    limbs.UpperTorso_RightUpperArm.To = Vector2.new(RUA.X, RUA.Y)
-                    limbs.RightUpperArm_RightLowerArm.From = Vector2.new(RUA.X, RUA.Y)
-                    limbs.RightUpperArm_RightLowerArm.To = Vector2.new(RLA.X, RLA.Y)
-                    limbs.RightLowerArm_RightHand.From = Vector2.new(RLA.X, RLA.Y)
-                    limbs.RightLowerArm_RightHand.To = Vector2.new(RH.X, RH.Y)
-                    limbs.LowerTorso_LeftUpperLeg.From = Vector2.new(LT.X, LT.Y)
-                    limbs.LowerTorso_LeftUpperLeg.To = Vector2.new(LUL.X, LUL.Y)
-                    limbs.LeftUpperLeg_LeftLowerLeg.From = Vector2.new(LUL.X, LUL.Y)
-                    limbs.LeftUpperLeg_LeftLowerLeg.To = Vector2.new(LLL.X, LLL.Y)
-                    limbs.LeftLowerLeg_LeftFoot.From = Vector2.new(LLL.X, LLL.Y)
-                    limbs.LeftLowerLeg_LeftFoot.To = Vector2.new(LF.X, LF.Y)
-                    limbs.LowerTorso_RightUpperLeg.From = Vector2.new(LT.X, LT.Y)
-                    limbs.LowerTorso_RightUpperLeg.To = Vector2.new(RUL.X, RUL.Y)
-                    limbs.RightUpperLeg_RightLowerLeg.From = Vector2.new(RUL.X, RUL.Y)
-                    limbs.RightUpperLeg_RightLowerLeg.To = Vector2.new(RLL.X, RLL.Y)
-                    limbs.RightLowerLeg_RightFoot.From = Vector2.new(RLL.X, RLL.Y)
-                    limbs.RightLowerLeg_RightFoot.To = Vector2.new(RF.X, RF.Y)
-                    if not limbs.Head_UpperTorso.Visible then SetVisibility(true) end
-                else
-                    if limbs.Head_UpperTorso.Visible then SetVisibility(false) end
-                end
-            else
-                if limbs.Head_UpperTorso.Visible then SetVisibility(false) end
-                if not Players:FindFirstChild(plr.Name) then
-                    RemoveLines()
-                    connection:Disconnect()
-                end
-            end
-        end)
-    else
-        connection = RunService.RenderStepped:Connect(function()
-            local char = plr.Character
-            if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") and char.Humanoid.Health > 0 then
-                local _, onScreen = Camera:WorldToViewportPoint(char.HumanoidRootPart.Position)
-                if onScreen then
-                    local H = Camera:WorldToViewportPoint(char.Head.Position)
-                    local torso = char.Torso or char.UpperTorso
-                    local T_Height = torso.Size.Y/2 - 0.2
-                    local UT = Camera:WorldToViewportPoint((torso.CFrame * CFrame.new(0, T_Height, 0)).p)
-                    local LT = Camera:WorldToViewportPoint((torso.CFrame * CFrame.new(0, -T_Height, 0)).p)
-
-                    local LA = char["Left Arm"]
-                    local LA_Height = LA.Size.Y/2 - 0.2
-                    local LUA = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, LA_Height, 0)).p)
-                    local LLA = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, -LA_Height, 0)).p)
-
-                    local RA = char["Right Arm"]
-                    local RA_Height = RA.Size.Y/2 - 0.2
-                    local RUA = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, RA_Height, 0)).p)
-                    local RLA = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, -RA_Height, 0)).p)
-
-                    local LL = char["Left Leg"]
-                    local LL_Height = LL.Size.Y/2 - 0.2
-                    local LUL = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, LL_Height, 0)).p)
-                    local LLL = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, -LL_Height, 0)).p)
-
-                    local RL = char["Right Leg"]
-                    local RL_Height = RL.Size.Y/2 - 0.2
-                    local RUL = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, RL_Height, 0)).p)
-                    local RLL = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, -RL_Height, 0)).p)
-
-                    limbs.Head_Spine.From = Vector2.new(H.X, H.Y)
-                    limbs.Head_Spine.To = Vector2.new(UT.X, UT.Y)
-                    limbs.Spine.From = Vector2.new(UT.X, UT.Y)
-                    limbs.Spine.To = Vector2.new(LT.X, LT.Y)
-                    limbs.LeftArm.From = Vector2.new(LUA.X, LUA.Y)
-                    limbs.LeftArm.To = Vector2.new(LLA.X, LLA.Y)
-                    limbs.LeftArm_UpperTorso.From = Vector2.new(UT.X, UT.Y)
-                    limbs.LeftArm_UpperTorso.To = Vector2.new(LUA.X, LUA.Y)
-                    limbs.RightArm.From = Vector2.new(RUA.X, RUA.Y)
-                    limbs.RightArm.To = Vector2.new(RLA.X, RLA.Y)
-                    limbs.RightArm_UpperTorso.From = Vector2.new(UT.X, UT.Y)
-                    limbs.RightArm_UpperTorso.To = Vector2.new(RUA.X, RUA.Y)
-                    limbs.LeftLeg.From = Vector2.new(LUL.X, LUL.Y)
-                    limbs.LeftLeg.To = Vector2.new(LLL.X, LLL.Y)
-                    limbs.LeftLeg_LowerTorso.From = Vector2.new(LT.X, LT.Y)
-                    limbs.LeftLeg_LowerTorso.To = Vector2.new(LUL.X, LUL.Y)
-                    limbs.RightLeg.From = Vector2.new(RUL.X, RUL.Y)
-                    limbs.RightLeg.To = Vector2.new(RLL.X, RLL.Y)
-                    limbs.RightLeg_LowerTorso.From = Vector2.new(LT.X, LT.Y)
-                    limbs.RightLeg_LowerTorso.To = Vector2.new(RUL.X, RUL.Y)
-                    if not limbs.Head_Spine.Visible then SetVisibility(true) end
-                else
-                    if limbs.Head_Spine.Visible then SetVisibility(false) end
-                end
-            else
-                if limbs.Head_Spine.Visible then SetVisibility(false) end
-                if not Players:FindFirstChild(plr.Name) then
-                    RemoveLines()
-                    connection:Disconnect()
-                end
-            end
-        end)
-    end
-
-    return function()
-        connection:Disconnect()
-        RemoveLines()
-    end
-end
-
-local skeletonColor = Color3.fromRGB(255, 255, 255)
-
-Test:Toggle({
-    Name = "Skeleton",
-    Flag = "SkeletonToggle",
-    Default = false,
-    Callback = function(enabled)
-        skeletonEnabled = enabled
-
-        if enabled then
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    if not ESPConnections[player.Name] then
-                        ESPConnections[player.Name] = DrawESP(player, skeletonColor)
-                    end
-                end
-            end
-
-            if not PlayerAddedConn then
-                PlayerAddedConn = Players.PlayerAdded:Connect(function(newPlayer)
-                    if newPlayer ~= LocalPlayer and skeletonEnabled then
-                        if not ESPConnections[newPlayer.Name] then
-                            ESPConnections[newPlayer.Name] = DrawESP(newPlayer, skeletonColor)
-                        end
-                    end
-                end)
-            end
-
-            if not PlayerRemovingConn then
-                PlayerRemovingConn = Players.PlayerRemoving:Connect(function(leavingPlayer)
-                    if ESPConnections[leavingPlayer.Name] then
-                        ESPConnections[leavingPlayer.Name]()
-                        ESPConnections[leavingPlayer.Name] = nil
-                    end
-                end)
-            end
-        else
-            for playerName, cleanupFunc in pairs(ESPConnections) do
-                cleanupFunc()
-                ESPConnections[playerName] = nil
-            end
-
-            if PlayerAddedConn then
-                PlayerAddedConn:Disconnect()
-                PlayerAddedConn = nil
-            end
-
-            if PlayerRemovingConn then
-                PlayerRemovingConn:Disconnect()
-                PlayerRemovingConn = nil
-            end
         end
     end
 })
@@ -602,12 +348,15 @@ end)
 local corpsesFolder = workspace:WaitForChild("Corpses")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-
 local localPlayer = Players.LocalPlayer
 
 local corpseESPEnabled = false
 local showNames = false
 local showDistance = false
+
+local corpseHighlightColor = Color3.fromRGB(255, 0, 0)
+local corpseNameColor = Color3.fromRGB(255, 255, 255)
+local corpseDistanceColor = Color3.fromRGB(255, 255, 255)
 
 local espConnections = {}
 local espDrawings = {}
@@ -641,16 +390,17 @@ end
 
 local function createHighlight(model)
     if isIgnoredCorpse(model) then return end
-    if not model:FindFirstChild("CorpseHighlight") then
-        local highlight = Instance.new("Highlight")
+    local highlight = model:FindFirstChild("CorpseHighlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
         highlight.Name = "CorpseHighlight"
         highlight.Adornee = model
-        highlight.FillColor = Color3.fromRGB(255, 0, 0)
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0
         highlight.Parent = model
     end
+    highlight.FillColor = corpseHighlightColor
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
 end
 
 local function createNameDistance(model)
@@ -675,7 +425,7 @@ local function createNameDistance(model)
     nameText.Visible = false
     nameText.Font = Enum.Font.GothamBold
     nameText.Size = 16
-    nameText.Color = Color3.new(1, 1, 1)
+    nameText.Color = corpseNameColor
 
     local distanceText = Drawing.new("Text")
     distanceText.Center = true
@@ -683,7 +433,7 @@ local function createNameDistance(model)
     distanceText.Visible = false
     distanceText.Font = Enum.Font.GothamBold
     distanceText.Size = 16
-    distanceText.Color = Color3.new(1, 1, 1)
+    distanceText.Color = corpseDistanceColor
 
     espDrawings[model] = {nameText = nameText, distanceText = distanceText}
 
@@ -716,9 +466,11 @@ local function createNameDistance(model)
 
             if showNames then
                 nameText.Text = model.Name
+                nameText.Color = corpseNameColor
             end
             if showDistance then
                 distanceText.Text = tostring(distanceMeters) .. "m"
+                distanceText.Color = corpseDistanceColor
             end
         else
             nameText.Visible = false
@@ -769,6 +521,18 @@ CorpseSection:Toggle({
         corpseESPEnabled = state
         updateCorpseESP(corpseESPEnabled)
     end
+}):Colorpicker({
+    Default = corpseHighlightColor,
+    Flag = "CorpseESPColor",
+    Callback = function(color)
+        corpseHighlightColor = color
+        for _, corpse in pairs(corpsesFolder:GetChildren()) do
+            local hl = corpse:FindFirstChild("CorpseHighlight")
+            if hl then
+                hl.FillColor = color
+            end
+        end
+    end
 })
 
 CorpseSection:Toggle({
@@ -778,6 +542,17 @@ CorpseSection:Toggle({
         showNames = state
         if corpseESPEnabled then
             updateCorpseESP(true)
+        end
+    end
+}):Colorpicker({
+    Default = corpseNameColor,
+    Flag = "CorpseNameColor",
+    Callback = function(color)
+        corpseNameColor = color
+        for _, v in pairs(espDrawings) do
+            if v.nameText then
+                v.nameText.Color = color
+            end
         end
     end
 })
@@ -791,6 +566,17 @@ CorpseSection:Toggle({
             updateCorpseESP(true)
         end
     end
+}):Colorpicker({
+    Default = corpseDistanceColor,
+    Flag = "CorpseDistanceColor",
+    Callback = function(color)
+        corpseDistanceColor = color
+        for _, v in pairs(espDrawings) do
+            if v.distanceText then
+                v.distanceText.Color = color
+            end
+        end
+    end
 })
 
 local vehiclesFolder = workspace:WaitForChild("Vehicles")
@@ -801,6 +587,10 @@ local localPlayer = Players.LocalPlayer
 local vehicleESPEnabled = false
 local vehicleShowNames = false
 local vehicleShowDistance = false
+
+local vehicleESPColor = Color3.fromRGB(0, 0, 255)
+local vehicleNameColor = Color3.fromRGB(255, 255, 255)
+local vehicleDistanceColor = Color3.fromRGB(255, 255, 255)
 
 local espConnectionsVehicles = {}
 local espDrawingsVehicles = {}
@@ -830,11 +620,13 @@ local function createVehicleHighlight(model)
         local highlight = Instance.new("Highlight")
         highlight.Name = "VehicleHighlight"
         highlight.Adornee = model
-        highlight.FillColor = Color3.fromRGB(0, 0, 255)
+        highlight.FillColor = vehicleESPColor
         highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
         highlight.FillTransparency = 0.5
         highlight.OutlineTransparency = 0
         highlight.Parent = model
+    else
+        model.VehicleHighlight.FillColor = vehicleESPColor
     end
 end
 
@@ -858,7 +650,7 @@ local function createVehicleNameDistance(model)
     nameText.Visible = false
     nameText.Font = Enum.Font.GothamBold
     nameText.Size = 16
-    nameText.Color = Color3.new(1, 1, 1)
+    nameText.Color = vehicleNameColor
 
     local distanceText = Drawing.new("Text")
     distanceText.Center = true
@@ -866,7 +658,7 @@ local function createVehicleNameDistance(model)
     distanceText.Visible = false
     distanceText.Font = Enum.Font.GothamBold
     distanceText.Size = 16
-    distanceText.Color = Color3.new(1, 1, 1)
+    distanceText.Color = vehicleDistanceColor
 
     espDrawingsVehicles[model] = {nameText = nameText, distanceText = distanceText}
 
@@ -888,7 +680,7 @@ local function createVehicleNameDistance(model)
 
         local pos, onScreen = camera:WorldToViewportPoint(primary.Position + Vector3.new(0, 3, 0))
         local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
-        local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5) -- rounded meters
+        local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5)
 
         if onScreen then
             nameText.Position = Vector2.new(pos.X, pos.Y)
@@ -899,9 +691,11 @@ local function createVehicleNameDistance(model)
 
             if vehicleShowNames then
                 nameText.Text = model.Name
+                nameText.Color = vehicleNameColor
             end
             if vehicleShowDistance then
                 distanceText.Text = tostring(distanceMeters) .. " m"
+                distanceText.Color = vehicleDistanceColor
             end
         else
             nameText.Visible = false
@@ -944,11 +738,22 @@ vehiclesFolder.ChildAdded:Connect(function(newVehicle)
 end)
 
 VehicleSection:Toggle({
-    Name = "Vehicle ESP",
+    Name = "Vehicle Esp",
     Flag = "VehicleESP",
     Callback = function(state)
         vehicleESPEnabled = state
         updateVehicleESP(vehicleESPEnabled)
+    end
+}):Colorpicker({
+    Default = vehicleESPColor,
+    Flag = "VehicleESPColor",
+    Callback = function(color)
+        vehicleESPColor = color
+        for _, vehicle in pairs(vehiclesFolder:GetChildren()) do
+            if vehicle:FindFirstChild("VehicleHighlight") then
+                vehicle.VehicleHighlight.FillColor = color
+            end
+        end
     end
 })
 
@@ -961,6 +766,17 @@ VehicleSection:Toggle({
             updateVehicleESP(true)
         end
     end
+}):Colorpicker({
+    Default = vehicleNameColor,
+    Flag = "VehicleNameColor",
+    Callback = function(color)
+        vehicleNameColor = color
+        for _, v in pairs(espDrawingsVehicles) do
+            if v.nameText then
+                v.nameText.Color = color
+            end
+        end
+    end
 })
 
 VehicleSection:Toggle({
@@ -970,6 +786,17 @@ VehicleSection:Toggle({
         vehicleShowDistance = state
         if vehicleESPEnabled then
             updateVehicleESP(true)
+        end
+    end
+}):Colorpicker({
+    Default = vehicleDistanceColor,
+    Flag = "VehicleDistanceColor",
+    Callback = function(color)
+        vehicleDistanceColor = color
+        for _, v in pairs(espDrawingsVehicles) do
+            if v.distanceText then
+                v.distanceText.Color = color
+            end
         end
     end
 })
@@ -1119,153 +946,13 @@ ZombieSection:Toggle({
     end
 })
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local itemsFolder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Items")
-local player = Players.LocalPlayer
-
-local itemNames = {}
-for _, item in pairs(itemsFolder:GetChildren()) do
-    itemNames[item.Name] = true
-end
-
-local itemESPEnabled = false
-local showNames = false
-local showDistance = false
-local espConnections = {}
-local MAX_DISTANCE = 5000
-
-local function removeESP(part)
-    local gui = part:FindFirstChild("ItemESP")
-    if gui then gui:Destroy() end
-    if espConnections[part] then
-        espConnections[part]:Disconnect()
-        espConnections[part] = nil
-    end
-end
-
-local function createESP(part)
-    if part:FindFirstChild("ItemESP") then return end
-
-    local gui = Instance.new("BillboardGui")
-    gui.Name = "ItemESP"
-    gui.Adornee = part
-    gui.Size = UDim2.new(0, 200, 0, 60)
-    gui.StudsOffset = Vector3.new(0, 2.5, 0)
-    gui.AlwaysOnTop = true
-    gui.Parent = part
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.fromRGB(255, 0, 0)
-    label.TextStrokeColor3 = Color3.new(0, 0, 0)
-    label.TextStrokeTransparency = 0
-    label.Font = Enum.Font.Code
-    label.TextScaled = true
-    label.TextWrapped = true
-    label.Text = part.Name
-    label.Parent = gui
-
-    espConnections[part] = RunService.Heartbeat:Connect(function()
-        if not part or not part.Parent then
-            removeESP(part)
-            return
-        end
-
-        local character = player.Character
-        if character and character.PrimaryPart and gui.Adornee then
-            local distanceStuds = (character.PrimaryPart.Position - gui.Adornee.Position).Magnitude
-            if distanceStuds > MAX_DISTANCE then
-                label.Text = ""
-                return
-            end
-            local distanceMeters = distanceStuds * 0.28
-            local lines = {}
-
-            if showNames then
-                table.insert(lines, part.Name)
-            end
-            if showDistance then
-                table.insert(lines, string.format("%.1f m", distanceMeters))
-            end
-
-            label.Text = #lines > 0 and table.concat(lines, "\n") or ""
-        else
-            label.Text = showNames and part.Name or ""
-        end
-    end)
-end
-
-local function setupESPs()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and itemNames[obj.Name] then
-            createESP(obj)
-        end
-    end
-end
-
-local function updateItemESP(enabled)
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and itemNames[obj.Name] then
-            if enabled then
-                createESP(obj)
-            else
-                removeESP(obj)
-            end
-        end
-    end
-end
-
-setupESPs()
-
-workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("BasePart") and itemNames[obj.Name] then
-        if itemESPEnabled then
-            createESP(obj)
-        end
-    end
-end)
-
-ItemSection:Toggle({
-    Name = "Item ESP",
-    Flag = "ItemESP",
-    Callback = function(state)
-        itemESPEnabled = state
-        updateItemESP(itemESPEnabled)
-    end
-})
-
-ItemSection:Toggle({
-    Name = "Names",
-    Flag = "ItemShowNames",
-    Callback = function(state)
-        showNames = state
-        if itemESPEnabled then
-            updateItemESP(true)
-        end
-    end
-})
-
-ItemSection:Toggle({
-    Name = "Distance",
-    Flag = "ItemShowDistance",
-    Callback = function(state)
-        showDistance = state
-        if itemESPEnabled then
-            updateItemESP(true)
-        end
-    end
-})
-
 local combat = Window:Page({ Name = "Combat" })
 local headExpander = combat:Section({ Name = "Head Expander" })
 local silentAim = combat:Section({ Name = "Silent Aim", Side = "Right" })
 local spinningCrosshair = combat:Section({ Name = "Spinning CrossHair", Side = "Left" })
 local gunMods = combat:Section({ Name = "Gun Mods", Side = "Left" })
 local meleeSpeed = combat:Section({ Name = "Melee Speed", Side = "Right" })
+local CustomHitSound = combat:Section({ Name = "HitSounds", Side = "Left" })
 
 local ReplicatedFirst = cloneref(game:GetService("ReplicatedFirst"))
 local Bullets = require(ReplicatedFirst:WaitForChild("Framework")).Libraries.Bullets
@@ -1821,7 +1508,6 @@ headExpander:Slider({
     Max = 50,
     Default = headSizeValue,
     Decimals = 1,
-    Suffix = "x",
     Callback = function(value)
         headSizeValue = value
         if headExpanderEnabled then
@@ -2031,6 +1717,24 @@ worldSection:Toggle({
 })
 
 worldSection:Toggle({
+    Name = "No Fog",
+    Flag = "NoFog",
+    Callback = function(enabled)
+        if enabled then    
+            atmosphereConnection = game:GetService("Lighting").Atmosphere.Changed:Connect(function(prop)
+                if prop == "Density" then
+                    game:GetService("Lighting").Atmosphere.Density = 0
+                end
+            end)
+        else
+            if atmosphereConnection then
+                atmosphereConnection:Disconnect()
+            end
+        end
+    end
+})
+
+worldSection:Toggle({
     Name = "No Leaves", 
     Flag = "NoLeavesToggle", 
     Callback = function(enabled)
@@ -2043,6 +1747,8 @@ worldSection:Toggle({
         end
     end
 })
+
+
 local Lighting = game:GetService("Lighting")
 
 local Socolo = {}
