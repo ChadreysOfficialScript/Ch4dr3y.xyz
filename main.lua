@@ -1225,6 +1225,28 @@ task.spawn(function()
     end)
 end)
 
+SelfChamsSection:Button({
+    Name = "Noclip",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local player = Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+
+        local noclip = true
+
+        RunService.Stepped:Connect(function()
+            if noclip and character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide == true then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+})
+
 local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1522,9 +1544,9 @@ headExpander:Slider({
     Name = "Head Transparency",
     Flag = "AR2/HeadTransparency",
     Min = 0,
-    Max = 0.5,
+    Max = 1,
     Default = headTransparencyValue,
-    Decimals = 2,
+    Decimals = 0.5,
     Callback = function(value)
         headTransparencyValue = value
         if headExpanderEnabled then
