@@ -953,6 +953,7 @@ local spinningCrosshair = combat:Section({ Name = "Spinning CrossHair", Side = "
 local gunMods = combat:Section({ Name = "Gun Mods", Side = "Left" })
 local meleeSpeed = combat:Section({ Name = "Melee Speed", Side = "Right" })
 local CustomHitSound = combat:Section({ Name = "HitSounds", Side = "Left" })
+local AntiZombie = combat:Section({ Name = "Anti Zombie", Side = "Right" })
 
 local ReplicatedFirst = cloneref(game:GetService("ReplicatedFirst"))
 local Bullets = require(ReplicatedFirst:WaitForChild("Framework")).Libraries.Bullets
@@ -1932,5 +1933,107 @@ worldSection:Dropdown({
         end
     end
 })
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local function findImpactFolder()
+    local current = ReplicatedStorage
+    for _, folderName in ipairs({"Assets", "Sounds", "Impact"}) do
+        current = current:FindFirstChild(folderName)
+        if not current then return nil end
+    end
+    return current
+end
+
+local impactFolder = findImpactFolder()
+if not impactFolder then
+    
+    return
+end
+
+local headshotSound = impactFolder:FindFirstChild("Headshot")
+if not headshotSound then
+    headshotSound = Instance.new("Sound")
+    headshotSound.Name = "Headshot"
+    headshotSound.Parent = impactFolder
+end
+
+local sounds = {
+    ["Default"] = "rbxassetid://2062016772",
+    ["Gamesense"] = "rbxassetid://4817809188",
+    ["CS:GO"] = "rbxassetid://6937353691",
+    ["Among Us"] = "rbxassetid://5700183626",
+    ["Neverlose"] = "rbxassetid://8726881116",
+    ["TF2 Critical"] = "rbxassetid://296102734",
+    ["Mario"] = "rbxassetid://2815207981",
+    ["Rust"] = "rbxassetid://1255040462",
+    ["Call of Duty"] = "rbxassetid://5952120301",
+    ["Steve"] = "rbxassetid://4965083997",
+    ["Bamboo"] = "rbxassetid://3769434519",
+    ["Minecraft"] = "rbxassetid://4018616850",
+    ["TF2"] = "rbxassetid://2868331684"
+}
+
+CustomHitSound:Toggle({
+    Name = "Head HitSound",
+    Flag = "HeadshotHitsound_Enabled",
+    Callback = function(enabled)
+        if not enabled then
+            headshotSound.SoundId = sounds["Default"]
+        end
+    end
+})
+
+CustomHitSound:Dropdown({
+    Name = "Select HitSound",
+    Flag = "HeadshotHitsound",
+    Options = {
+        "Default",
+        "Gamesense",
+        "CS:GO",
+        "Among Us",
+        "Neverlose",
+        "TF2 Critical",
+        "Mario",
+        "Rust",
+        "Call of Duty",
+        "Steve",
+        "Bamboo",
+        "Minecraft",
+        "TF2"
+    },
+    Default = "Default",
+    Callback = function(value)
+        if Library.Flags["HeadshotHitsound_Enabled"] and sounds[value] then
+            headshotSound.SoundId = sounds[value]
+            headshotSound.Volume = 3.0
+            headshotSound:Play()
+        end
+    end
+})
+
+local function playHeadshotSound()
+    if Library.Flags["HeadshotHitsound_Enabled"] then
+        headshotSound:Play()
+    end
+end
+
+local function setupHeadshotDetection()
+    local function onCharacterAdded(character)
+        local head = character:WaitForChild("Head")
+        head.Touched:Connect(function(hitPart)
+            playHeadshotSound()
+        end)
+    end
+
+    local player = Players.LocalPlayer
+    player.CharacterAdded:Connect(onCharacterAdded)
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+end
+
+task.spawn(setupHeadshotDetection)
 
 Library:LoadConfigTab(Window)
