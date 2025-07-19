@@ -1406,6 +1406,68 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     end
 end)
 
+local strafeEnabled = false
+
+local Vis = SelfChamsSection:Toggle({
+    Name = "WalkSpeed",
+    Flag = "StrafeRun_Enabled",
+    Callback = function(enabled)
+        strafeEnabled = enabled
+    end
+})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local movement = {
+	W = false,
+	A = false,
+	S = false,
+	D = false,
+}
+
+local speed = 35
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	local key = input.KeyCode.Name
+	if movement[key] ~= nil then
+		movement[key] = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	local key = input.KeyCode.Name
+	if movement[key] ~= nil then
+		movement[key] = false
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not strafeEnabled then return end
+	if not character or not hrp then return end
+
+	local moveVector = Vector3.zero
+	local lookVector = hrp.CFrame.LookVector
+	local rightVector = hrp.CFrame.RightVector
+
+	if movement.W then moveVector += lookVector end
+	if movement.S then moveVector -= lookVector end
+	if movement.A then moveVector -= rightVector end
+	if movement.D then moveVector += rightVector end
+
+	moveVector = moveVector.Unit * speed
+	if moveVector.Magnitude == moveVector.Magnitude then
+		hrp.Velocity = Vector3.new(moveVector.X, hrp.Velocity.Y, moveVector.Z)
+	end
+end)
+
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1520,6 +1582,19 @@ headExpander:Toggle({
                 ApplyHeadChanges(player)
             end
             Players.PlayerAdded:Connect(ApplyHeadChanges)
+        else
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= Players.LocalPlayer then
+                    local char = player.Character
+                    if char then
+                        local head = char:FindFirstChild("Head")
+                        if head and head:IsA("Part") then
+                            head.Size = Vector3.new(2, 1, 1)
+                            head.Transparency = 0
+                        end
+                    end
+                end
+            end
         end
     end
 })
@@ -1565,6 +1640,7 @@ OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     end
     return OldIndex(Self, Index)
 end)
+
 
 local CrosshairEnabled = false
 local SpinSpeed = 300
@@ -2035,5 +2111,6 @@ local function setupHeadshotDetection()
 end
 
 task.spawn(setupHeadshotDetection)
+
 
 Library:LoadConfigTab(Window)
