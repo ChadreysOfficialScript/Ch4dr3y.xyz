@@ -1477,7 +1477,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local movement = { W = false, A = false, S = false, D = false }
-local speed = 0.35
+local speed = 0.20
 
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -1601,6 +1601,7 @@ RunService.RenderStepped:Connect(function()
     fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
     fovCircle.Visible = fovEnabled
 end)
+
 
 local Players = game:GetService("Players")
 local headExpanderEnabled = false
@@ -2187,5 +2188,77 @@ end
 
 task.spawn(setupHeadshotDetection)
 
+local zombiesFolder = workspace:WaitForChild("Zombies")
+_G.anti_zombie = true
+local isFreezeEnabled = true
+
+local function freezeZombie(zombie)
+    local humanoid = zombie:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+    end
+
+    for _, part in ipairs(zombie:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = true
+        end
+    end
+end
+
+AntiZombie:Toggle({
+    Name = "Anti Zombie",
+    Flag = "AntiZombieHitsound_Enabled",
+    Callback = function(enabled)
+        _G.anti_zombie = enabled
+        if enabled then
+            task.spawn(function()
+                while _G.anti_zombie do
+                    local mobs = workspace:FindFirstChild("Zombies") and workspace.Zombies:FindFirstChild("Mobs")
+                    if mobs then
+                        for _, obj in pairs(mobs:GetChildren()) do
+                            local root = obj:FindFirstChild("HumanoidRootPart")
+                            if root and isnetworkowner(root) then
+                                root.Anchored = true
+                            end
+                        end
+                    end
+                    task.wait()
+                end
+            end)
+        end
+    end
+})
+
+
+AntiZombie:Toggle({
+    Name = "Freeze Zombie",
+    Flag = "FreezeZombieHitsound_Enabled",
+    Callback = function(enabled)
+        isFreezeEnabled = enabled
+        if not isFreezeEnabled then
+            for _, zombie in pairs(zombiesFolder:GetChildren()) do
+                if zombie:IsA("Model") then
+                    local humanoid = zombie:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.WalkSpeed = humanoid:GetAttribute("DefaultWalkSpeed") or 16
+                        humanoid.JumpPower = humanoid:GetAttribute("DefaultJumpPower") or 50
+                    end
+                    for _, part in ipairs(zombie:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Anchored = false
+                        end
+                    end
+                end
+            end
+        end
+    end
+})
+
+for _, zombie in pairs(zombiesFolder:GetChildren()) do
+    if zombie:IsA("Model") and isFreezeEnabled then
+        freezeZombie(zombie)
+    end
+end
 
 Library:LoadConfigTab(Window)
