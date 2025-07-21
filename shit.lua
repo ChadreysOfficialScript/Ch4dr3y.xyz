@@ -2207,30 +2207,6 @@ local function freezeZombie(zombie)
 end
 
 AntiZombie:Toggle({
-    Name = "Anti Zombie",
-    Flag = "AntiZombieHitsound_Enabled",
-    Callback = function(enabled)
-        _G.anti_zombie = enabled
-        if enabled then
-            task.spawn(function()
-                while _G.anti_zombie do
-                    local mobs = workspace:FindFirstChild("Zombies") and workspace.Zombies:FindFirstChild("Mobs")
-                    if mobs then
-                        for _, obj in pairs(mobs:GetChildren()) do
-                            local root = obj:FindFirstChild("HumanoidRootPart")
-                            if root and isnetworkowner(root) then
-                                root.Anchored = true
-                            end
-                        end
-                    end
-                    task.wait()
-                end
-            end)
-        end
-    end
-})
-
-AntiZombie:Toggle({
     Name = "Freeze Zombie",
     Flag = "FreezeZombieHitsound_Enabled",
     Callback = function(enabled)
