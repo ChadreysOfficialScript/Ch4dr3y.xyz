@@ -1341,7 +1341,24 @@ end
 
 local SelfChamsEnabled = false
 local SelfChamsColor = Color3.fromRGB(255, 255, 255)
+local RainbowChamsEnabled = false
 local originalProperties = {}
+
+local function HSVToRGB(h, s, v)
+    local c = v * s
+    local x = c * (1 - math.abs((h / 60) % 2 - 1))
+    local m = v - c
+    local r, g, b = 0, 0, 0
+
+    if h < 60 then r, g, b = c, x, 0
+    elseif h < 120 then r, g, b = x, c, 0
+    elseif h < 180 then r, g, b = 0, c, x
+    elseif h < 240 then r, g, b = 0, x, c
+    elseif h < 300 then r, g, b = x, 0, c
+    else r, g, b = c, 0, x end
+
+    return Color3.new(r + m, g + m, b + m)
+end
 
 local function applyChams(char)
     task.wait(0)
@@ -1352,7 +1369,6 @@ local function applyChams(char)
                 Color = part.Color,
                 Material = part.Material
             }
-            part.Color = SelfChamsColor
             part.Material = Enum.Material.ForceField
         end
     end
@@ -1369,7 +1385,21 @@ local function removeChams(char)
     originalProperties = {}
 end
 
-local Vis = SelfChamsSection:Toggle({
+local function updateChams()
+    if not SelfChamsEnabled or not LocalPlayer.Character then return end
+    for part, _ in pairs(originalProperties) do
+        if part and part.Parent then
+            if RainbowChamsEnabled then
+                local hue = (tick() * 120) % 360
+                part.Color = HSVToRGB(hue, 1, 1)
+            else
+                part.Color = SelfChamsColor
+            end
+        end
+    end
+end
+
+SelfChamsSection:Toggle({
     Name = "Self Chams",
     Flag = "SelfChams",
     Default = false,
@@ -1385,15 +1415,36 @@ local Vis = SelfChamsSection:Toggle({
     end
 })
 
-Vis:Colorpicker({
-    Name = "Self Chams Color",
+SelfChamsSection:Toggle({
+    Name = "Rainbow Chams",
+    Flag = "RainbowChams",
+    Default = false,
+    Callback = function(state)
+        RainbowChamsEnabled = state
+        if SelfChamsEnabled and LocalPlayer.Character then
+            if not RainbowChamsEnabled then
+                for part, _ in pairs(originalProperties) do
+                    if part and part.Parent then
+                        part.Color = SelfChamsColor
+                    end
+                end
+            end
+        end
+    end
+})
+
+SelfChamsSection:Colorpicker({
+    Name = "Chams Color",
     Flag = "ChamsColor",
     Default = SelfChamsColor,
     Callback = function(color)
         SelfChamsColor = color
-        if SelfChamsEnabled and LocalPlayer.Character then
-            removeChams(LocalPlayer.Character)
-            applyChams(LocalPlayer.Character)
+        if SelfChamsEnabled and not RainbowChamsEnabled and LocalPlayer.Character then
+            for part, _ in pairs(originalProperties) do
+                if part and part.Parent then
+                    part.Color = SelfChamsColor
+                end
+            end
         end
     end
 })
@@ -1404,6 +1455,10 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     else
         removeChams(char)
     end
+end)
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    updateChams()
 end)
 
 local strafeEnabled = false
@@ -1422,7 +1477,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local movement = { W = false, A = false, S = false, D = false }
-local speed = 0.5
+local speed = 0.35
 
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -1642,15 +1697,31 @@ OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     return OldIndex(Self, Index)
 end)
 
-
 local CrosshairEnabled = false
 local SpinSpeed = 300
 local CrosshairRadius = 50
 local LineCount = 4
 local LineLength = 30
+local RainbowEnabled = false
 
 local lines = {}
 local currentAngle = 0
+
+local function HSVToRGB(h, s, v)
+    local c = v * s
+    local x = c * (1 - math.abs((h / 60) % 2 - 1))
+    local m = v - c
+    local r, g, b = 0, 0, 0
+
+    if h < 60 then r, g, b = c, x, 0
+    elseif h < 120 then r, g, b = x, c, 0
+    elseif h < 180 then r, g, b = 0, c, x
+    elseif h < 240 then r, g, b = 0, x, c
+    elseif h < 300 then r, g, b = x, 0, c
+    else r, g, b = c, 0, x end
+
+    return Color3.new(r + m, g + m, b + m)
+end
 
 local function CreateCrosshairLines()
     for _, line in ipairs(lines) do
@@ -1691,6 +1762,13 @@ RunService.RenderStepped:Connect(function(dt)
         line.From = Vector2.new(startX, startY)
         line.To = Vector2.new(endX, endY)
         line.Visible = true
+
+        if RainbowEnabled then
+            local hue = (tick() * 120 + (360 / LineCount) * (i - 1)) % 360
+            line.Color = HSVToRGB(hue, 1, 1)
+        else
+            line.Color = Color3.fromRGB(255, 255, 255)
+        end
     end
 end)
 
@@ -1727,16 +1805,12 @@ spinningCrosshair:Slider({
     end
 })
 
-spinningCrosshair:Slider({
-    Name = "Lines",
-    Flag = "LineCount",
-    Min = 1,
-    Max = 12,
-    Default = 4,
-    Increment = 1,
-    Callback = function(value)
-        LineCount = value
-        CreateCrosshairLines()
+spinningCrosshair:Toggle({
+    Name = "Rainbow Color",
+    Flag = "RainbowColor",
+    Default = false,
+    Callback = function(val)
+        RainbowEnabled = val
     end
 })
 
