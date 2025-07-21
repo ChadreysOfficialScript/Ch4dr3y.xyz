@@ -1477,7 +1477,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local movement = { W = false, A = false, S = false, D = false }
-local speed = 0.20
+local speed = 0.15
 
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
