@@ -2230,7 +2230,6 @@ AntiZombie:Toggle({
     end
 })
 
-
 AntiZombie:Toggle({
     Name = "Freeze Zombie",
     Flag = "FreezeZombieHitsound_Enabled",
