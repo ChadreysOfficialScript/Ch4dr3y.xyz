@@ -2195,6 +2195,8 @@ local isFreezeEnabled = true
 local function freezeZombie(zombie)
     local humanoid = zombie:FindFirstChildOfClass("Humanoid")
     if humanoid then
+        humanoid:SetAttribute("DefaultWalkSpeed", humanoid.WalkSpeed)
+        humanoid:SetAttribute("DefaultJumpPower", humanoid.JumpPower)
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
     end
@@ -2206,34 +2208,51 @@ local function freezeZombie(zombie)
     end
 end
 
+local function unfreezeZombie(zombie)
+    local humanoid = zombie:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = humanoid:GetAttribute("DefaultWalkSpeed") or 16
+        humanoid.JumpPower = humanoid:GetAttribute("DefaultJumpPower") or 50
+    end
+
+    for _, part in ipairs(zombie:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = false
+        end
+    end
+end
+
 AntiZombie:Toggle({
     Name = "Freeze Zombie",
     Flag = "FreezeZombieHitsound_Enabled",
     Callback = function(enabled)
         isFreezeEnabled = enabled
-        if not isFreezeEnabled then
-            for _, zombie in pairs(zombiesFolder:GetChildren()) do
-                if zombie:IsA("Model") then
-                    local humanoid = zombie:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.WalkSpeed = humanoid:GetAttribute("DefaultWalkSpeed") or 16
-                        humanoid.JumpPower = humanoid:GetAttribute("DefaultJumpPower") or 50
-                    end
-                    for _, part in ipairs(zombie:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.Anchored = false
-                        end
-                    end
+        for _, zombie in pairs(zombiesFolder:GetChildren()) do
+            if zombie:IsA("Model") then
+                if isFreezeEnabled then
+                    freezeZombie(zombie)
+                else
+                    unfreezeZombie(zombie)
                 end
             end
         end
     end
 })
 
+
 for _, zombie in pairs(zombiesFolder:GetChildren()) do
     if zombie:IsA("Model") and isFreezeEnabled then
         freezeZombie(zombie)
     end
 end
+
+
+zombiesFolder.ChildAdded:Connect(function(zombie)
+    if zombie:IsA("Model") and isFreezeEnabled then
+        zombie:WaitForChild("Humanoid")
+        freezeZombie(zombie)
+    end
+end)
+
 
 Library:LoadConfigTab(Window)
