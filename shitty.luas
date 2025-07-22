@@ -1686,66 +1686,6 @@ OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     return OldIndex(Self, Index)
 end)
 
-local bodyExpanderEnabled = false
-local scaleFactor = 1
-local localPlayer = game.Players.LocalPlayer
-local Players = game.Players
-
-local function expandCharacter(character)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        for _, part in pairs(character:GetChildren()) do
-            if part:IsA("MeshPart") or part:IsA("Part") then
-                part.Size = part.Size * scaleFactor
-                part.CFrame = part.CFrame * CFrame.new(0, 0, 0)
-            end
-        end
-    end
-end
-
-local function expandAllPlayers()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer and player.Character then
-            expandCharacter(player.Character)
-        end
-    end
-end
-
-headExpander:Toggle({
-    Name = "Body Expander",
-    Flag = "AR2/BodyExpander",
-    Default = bodyExpanderEnabled,
-    Callback = function(enabled)
-        bodyExpanderEnabled = enabled
-        if enabled then
-            expandAllPlayers()
-            Players.PlayerAdded:Connect(function(player)
-                if player ~= localPlayer then
-                    player.CharacterAdded:Connect(function(character)
-                        character:WaitForChild("HumanoidRootPart")
-                        expandCharacter(character)
-                    end)
-                end
-            end)
-        end
-    end
-})
-
-headExpander:Slider({
-    Name = "Body Size",
-    Flag = "AR2/BodyExpanderSize",
-    Min = 1,
-    Max = 5,
-    Default = scaleFactor,
-    Decimals = 1,
-    Callback = function(value)
-        scaleFactor = value
-        if bodyExpanderEnabled then
-            expandAllPlayers()
-        end
-    end
-})
-
 local CrosshairEnabled = false
 local SpinSpeed = 300
 local CrosshairRadius = 50
