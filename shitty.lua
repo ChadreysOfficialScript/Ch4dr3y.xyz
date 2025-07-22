@@ -3311,7 +3311,6 @@ local spinningCrosshair = combat:Section({ Name = "Spinning CrossHair", Side = "
 local gunMods = combat:Section({ Name = "Gun Mods", Side = "Left" })
 local meleeSpeed = combat:Section({ Name = "Melee Speed", Side = "Right" })
 local CustomHitSound = combat:Section({ Name = "HitSounds", Side = "Left" })
-local ZombieHeadExpander = combat:Section({ Name = "Zombie Head Expander", Side = "Left" })
 local AntiZombie = combat:Section({ Name = "Anti Zombie", Side = "Right" })
 
 local ReplicatedFirst = cloneref(game:GetService("ReplicatedFirst"))
@@ -4074,7 +4073,7 @@ end
 
 headExpander:Toggle({
     Name = "Body Expander",
-    Flag = "AR2/BodyExpander",
+    Flag = "BodyExpander",
     Default = false,
     Callback = function(enabled)
         bodyExpanderEnabled = enabled
@@ -4098,7 +4097,7 @@ headExpander:Toggle({
 
 headExpander:Slider({
     Name = "Body Size",
-    Flag = "AR2/BodyExpanderSize",
+    Flag = "BodyExpanderSize",
     Min = 1,
     Max = 50,
     Default = scaleFactor,
@@ -4686,9 +4685,9 @@ local function expandZombieHeads()
     end
 end
 
-ZombieHeadExpander:Toggle({
+AntiZombie:Toggle({
     Name = "Zombie Head Expander",
-    Flag = "AR2/ZombieHeadExpander",
+    Flag = "ZombieHeadExpander",
     Default = false,
     Callback = function(enabled)
         zombieHeadExpanderEnabled = enabled
@@ -4698,9 +4697,9 @@ ZombieHeadExpander:Toggle({
     end
 })
 
-ZombieHeadExpander:Slider({
+AntiZombie:Slider({
     Name = "Zombie Head Size",
-    Flag = "AR2/ZombieHeadSize",
+    Flag = "ZombieHeadSize",
     Min = 1,
     Max = 50,
     Default = zombieHeadSizeMultiplier,
