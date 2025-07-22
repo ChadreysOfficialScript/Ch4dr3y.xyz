@@ -2207,7 +2207,7 @@ AntiZombie:Slider({
     Name = "Zombie Head Size",
     Flag = "ZombieHeadSize",
     Min = 1,
-    Max = 4,
+    Max = 2,
     Default = zombieHeadSizeMultiplier,
     Decimals = 1,
     Callback = function(value)
