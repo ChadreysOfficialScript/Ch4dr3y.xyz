@@ -2142,7 +2142,7 @@ task.spawn(setupHeadshotDetection)
 local zombiesFolder = workspace:WaitForChild("Zombies")
 
 local zombieHeadExpanderEnabled = false
-local zombieHeadSizeMultiplier = 20
+local zombieHeadSizeMultiplier = 2
 
 local function expandZombieHeads()
     for _, zombie in pairs(zombiesFolder:GetChildren()) do
@@ -2170,7 +2170,7 @@ AntiZombie:Slider({
     Name = "Zombie Head Size",
     Flag = "ZombieHeadSize",
     Min = 1,
-    Max = 50,
+    Max = 2,
     Default = zombieHeadSizeMultiplier,
     Decimals = 1,
     Callback = function(value)
