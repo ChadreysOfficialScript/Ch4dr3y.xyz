@@ -999,6 +999,7 @@ gunMods:Slider({
 
 local SilentAimEnabled = false
 local MaxDistance = 1000
+local SelectedHitPart = "Head"
 
 local function get_closest_player()
     local closest_distance = MaxDistance
@@ -1006,11 +1007,11 @@ local function get_closest_player()
 
     for _, player in pairs(game.Players:GetPlayers()) do
         local character = player.Character
-        if player == game.Players.LocalPlayer or not character or not character:FindFirstChild("Head") then
+        if player == game.Players.LocalPlayer or not character or not character:FindFirstChild(SelectedHitPart) then
             continue
         end
 
-        local pos, on_screen = workspace.CurrentCamera:WorldToViewportPoint(character.Head.Position)
+        local pos, on_screen = workspace.CurrentCamera:WorldToViewportPoint(character[SelectedHitPart].Position)
         if not on_screen then
             continue
         end
@@ -1043,8 +1044,8 @@ local function silent_aim()
     old_fire = hookfunction(framework.Fire, function(weapon_data, character_data, _, gun_data, origin, direction, ...)
         if SilentAimEnabled then
             local closest_character = get_closest_player()
-            if closest_character and closest_character:FindFirstChild("Head") then
-                direction = (closest_character.Head.Position - origin).Unit
+            if closest_character and closest_character:FindFirstChild(SelectedHitPart) then
+                direction = (closest_character[SelectedHitPart].Position - origin).Unit
             end
         end
         return old_fire(weapon_data, character_data, _, gun_data, origin, direction, ...)
@@ -1059,6 +1060,22 @@ silentAim:Toggle({
     Default = false,
     Callback = function(value)
         SilentAimEnabled = value
+    end
+})
+
+silentAim:Dropdown({
+    Name = "Hit Part",
+    Flag = "HitPart",
+    Options = {
+        "Head",
+        "Torso",
+        "Legs",
+        "Arms",
+        "HumanoidRootPart"
+    },
+    Default = "Head",
+    Callback = function(value)
+        SelectedHitPart = value
     end
 })
 
@@ -1198,7 +1215,27 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+SelfChamsSection:Button({
+    Name = "Noclip",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local player = Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
 
+        local noclip = true
+
+        RunService.Stepped:Connect(function()
+            if noclip and character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide == true then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+})
 
 local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -1648,6 +1685,66 @@ OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     end
     return OldIndex(Self, Index)
 end)
+
+local bodyExpanderEnabled = false
+local scaleFactor = 1
+local localPlayer = game.Players.LocalPlayer
+local Players = game.Players
+
+local function expandCharacter(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("MeshPart") or part:IsA("Part") then
+                part.Size = part.Size * scaleFactor
+                part.CFrame = part.CFrame * CFrame.new(0, 0, 0)
+            end
+        end
+    end
+end
+
+local function expandAllPlayers()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character then
+            expandCharacter(player.Character)
+        end
+    end
+end
+
+headExpander:Toggle({
+    Name = "Body Expander",
+    Flag = "AR2/BodyExpander",
+    Default = bodyExpanderEnabled,
+    Callback = function(enabled)
+        bodyExpanderEnabled = enabled
+        if enabled then
+            expandAllPlayers()
+            Players.PlayerAdded:Connect(function(player)
+                if player ~= localPlayer then
+                    player.CharacterAdded:Connect(function(character)
+                        character:WaitForChild("HumanoidRootPart")
+                        expandCharacter(character)
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+headExpander:Slider({
+    Name = "Body Size",
+    Flag = "AR2/BodyExpanderSize",
+    Min = 1,
+    Max = 5,
+    Default = scaleFactor,
+    Decimals = 1,
+    Callback = function(value)
+        scaleFactor = value
+        if bodyExpanderEnabled then
+            expandAllPlayers()
+        end
+    end
+})
 
 local CrosshairEnabled = false
 local SpinSpeed = 300
@@ -2170,7 +2267,7 @@ AntiZombie:Slider({
     Name = "Zombie Head Size",
     Flag = "ZombieHeadSize",
     Min = 1,
-    Max = 2,
+    Max = 4,
     Default = zombieHeadSizeMultiplier,
     Decimals = 1,
     Callback = function(value)
