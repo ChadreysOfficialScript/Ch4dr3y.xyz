@@ -999,7 +999,6 @@ gunMods:Slider({
 
 local SilentAimEnabled = false
 local MaxDistance = 1000
-local SelectedHitPart = "Head"
 
 local function get_closest_player()
     local closest_distance = MaxDistance
@@ -1007,11 +1006,11 @@ local function get_closest_player()
 
     for _, player in pairs(game.Players:GetPlayers()) do
         local character = player.Character
-        if player == game.Players.LocalPlayer or not character or not character:FindFirstChild(SelectedHitPart) then
+        if player == game.Players.LocalPlayer or not character or not character:FindFirstChild("Head") then
             continue
         end
 
-        local pos, on_screen = workspace.CurrentCamera:WorldToViewportPoint(character[SelectedHitPart].Position)
+        local pos, on_screen = workspace.CurrentCamera:WorldToViewportPoint(character.Head.Position)
         if not on_screen then
             continue
         end
@@ -1044,8 +1043,8 @@ local function silent_aim()
     old_fire = hookfunction(framework.Fire, function(weapon_data, character_data, _, gun_data, origin, direction, ...)
         if SilentAimEnabled then
             local closest_character = get_closest_player()
-            if closest_character and closest_character:FindFirstChild(SelectedHitPart) then
-                direction = (closest_character[SelectedHitPart].Position - origin).Unit
+            if closest_character and closest_character:FindFirstChild("Head") then
+                direction = (closest_character.Head.Position - origin).Unit
             end
         end
         return old_fire(weapon_data, character_data, _, gun_data, origin, direction, ...)
@@ -1060,22 +1059,6 @@ silentAim:Toggle({
     Default = false,
     Callback = function(value)
         SilentAimEnabled = value
-    end
-})
-
-silentAim:Dropdown({
-    Name = "Hit Part",
-    Flag = "HitPart",
-    Options = {
-        "Head",
-        "Torso",
-        "Legs",
-        "Arms",
-        "HumanoidRootPart"
-    },
-    Default = "Head",
-    Callback = function(value)
-        SelectedHitPart = value
     end
 })
 
