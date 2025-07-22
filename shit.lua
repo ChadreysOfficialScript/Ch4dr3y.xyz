@@ -953,6 +953,7 @@ local spinningCrosshair = combat:Section({ Name = "Spinning CrossHair", Side = "
 local gunMods = combat:Section({ Name = "Gun Mods", Side = "Left" })
 local meleeSpeed = combat:Section({ Name = "Melee Speed", Side = "Right" })
 local CustomHitSound = combat:Section({ Name = "HitSounds", Side = "Left" })
+local ZombieHeadExpander = combat:Section({ Name = "Zombie Head Expander", Side = "Left" })
 local AntiZombie = combat:Section({ Name = "Anti Zombie", Side = "Right" })
 
 local ReplicatedFirst = cloneref(game:GetService("ReplicatedFirst"))
@@ -1698,6 +1699,64 @@ OldIndex = hookmetamethod(game, "__index", function(Self, Index)
     return OldIndex(Self, Index)
 end)
 
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local scaleFactor = 2
+local bodyExpanderEnabled = false
+
+local function expandCharacter(character)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.Size = part.Size * scaleFactor
+            part.CFrame = part.CFrame * CFrame.new(0, (scaleFactor - 1) * part.Size.Y / 2, 0)
+        end
+    end
+end
+
+headExpander:Toggle({
+    Name = "Body Expander",
+    Flag = "AR2/BodyExpander",
+    Default = false,
+    Callback = function(enabled)
+        bodyExpanderEnabled = enabled
+        if enabled then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= localPlayer and player.Character then
+                    expandCharacter(player.Character)
+                end
+            end
+            Players.PlayerAdded:Connect(function(player)
+                if player ~= localPlayer then
+                    player.CharacterAdded:Connect(function(character)
+                        character:WaitForChild("HumanoidRootPart")
+                        expandCharacter(character)
+                    end)
+                end
+            end)
+        end
+    end
+})
+
+headExpander:Slider({
+    Name = "Body Size",
+    Flag = "AR2/BodyExpanderSize",
+    Min = 1,
+    Max = 50,
+    Default = scaleFactor,
+    Decimals = 1,
+    Callback = function(value)
+        scaleFactor = value
+        if bodyExpanderEnabled then
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= localPlayer and player.Character then
+                    expandCharacter(player.Character)
+                end
+            end
+        end
+    end
+})
+
 local CrosshairEnabled = false
 local SpinSpeed = 300
 local CrosshairRadius = 50
@@ -2254,5 +2313,46 @@ zombiesFolder.ChildAdded:Connect(function(zombie)
     end
 end)
 
+local zombiesFolder = workspace:WaitForChild("Zombies")
+
+local zombieHeadExpanderEnabled = false
+local zombieHeadSizeMultiplier = 20
+
+local function expandZombieHeads()
+    for _, zombie in pairs(zombiesFolder:GetChildren()) do
+        local head = zombie:FindFirstChild("Head")
+        if head and head:IsA("BasePart") then
+            head.Size = head.Size * zombieHeadSizeMultiplier
+            head.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
+        end
+    end
+end
+
+ZombieHeadExpande:Toggle({
+    Name = "Zombie Head Expander",
+    Flag = "AR2/ZombieHeadExpander",
+    Default = false,
+    Callback = function(enabled)
+        zombieHeadExpanderEnabled = enabled
+        if enabled then
+            expandZombieHeads()
+        end
+    end
+})
+
+ZombieHeadExpande:Slider({
+    Name = "Zombie Head Size",
+    Flag = "AR2/ZombieHeadSize",
+    Min = 1,
+    Max = 50,
+    Default = zombieHeadSizeMultiplier,
+    Decimals = 1,
+    Callback = function(value)
+        zombieHeadSizeMultiplier = value
+        if zombieHeadExpanderEnabled then
+            expandZombieHeads()
+        end
+    end
+})
 
 Library:LoadConfigTab(Window)
