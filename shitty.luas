@@ -1198,6 +1198,34 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+meleeSpeed:Toggle({
+    Name = "Melee Speed",
+    Flag = "MeleeSpeedToggle",
+    Default = false,
+    Callback = function(state) MeleeSpeedEnabled = state end
+})
+
+meleeSpeed:Slider({
+    Name = "Melee Speed",
+    Flag = "MeleeSpeedSlider",
+    Min = 1,
+    Max = 5,
+    Default = MeleeSpeedValue,
+    Callback = function(val) MeleeSpeedValue = val end
+})
+
+task.spawn(function()
+    local Framework = require(game:GetService("ReplicatedFirst").Framework)
+    local Animators = Framework.require("Classes", "Animators")
+    local oldAnim; oldAnim = hookfunction(Animators.PlayAnimation, function(self, anim, ...)
+        local track = oldAnim(self, anim, ...)
+        if MeleeSpeedEnabled and tostring(anim):match("Melees") then
+            self:SetAnimationSpeed(anim, MeleeSpeedValue)
+        end
+        return track
+    end)
+end)
+
 SelfChamsSection:Button({
     Name = "Noclip",
     Callback = function()
