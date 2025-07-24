@@ -162,17 +162,11 @@ RunService.Heartbeat:Connect(function()
 end)
 
 local playerHighlights = {}
-local HighlightsEnabled = false
-local HighlightColor = Color3.new(1, 0, 0)
-local Settings = {
-    MaxDistance = 5000
-}
 
 local function createHighlight(player)
     if playerHighlights[player] then return end
     local char = player.Character
     if not char then return end
-
     local highlight = Instance.new("Highlight")
     highlight.Name = "PlayerHighlightESP"
     highlight.Adornee = char
@@ -192,16 +186,11 @@ local function removeHighlight(player)
 end
 
 game.Players.PlayerAdded:Connect(function(player)
-    if player ~= game.Players.LocalPlayer then
-        player.CharacterAdded:Connect(function()
-            if HighlightsEnabled then
-                createHighlight(player)
-            end
-        end)
-        if player.Character and HighlightsEnabled then
+    player.CharacterAdded:Connect(function()
+        if HighlightsEnabled then
             createHighlight(player)
         end
-    end
+    end)
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
