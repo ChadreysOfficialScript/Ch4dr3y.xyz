@@ -76,70 +76,6 @@ Test:Toggle({
     end
 })
 
-local playerHighlights = {}
-
-local function createHighlight(player)
-    if playerHighlights[player] then return end
-    local char = player.Character
-    if not char then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "PlayerHighlightESP"
-    highlight.Adornee = char
-    highlight.FillColor = HighlightColor
-    highlight.OutlineColor = HighlightColor
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.Parent = workspace
-    playerHighlights[player] = highlight
-end
-
-local function removeHighlight(player)
-    if playerHighlights[player] then
-        playerHighlights[player]:Destroy()
-        playerHighlights[player] = nil
-    end
-end
-
-game.Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        if HighlightsEnabled then
-            createHighlight(player)
-        end
-    end)
-end)
-
-game.Players.PlayerRemoving:Connect(function(player)
-    removeHighlight(player)
-end)
-
-Test:Toggle({
-    Name = "Highlight",
-    Flag = "Highlight",
-    Default = false,
-    Callback = function(val)
-        HighlightsEnabled = val
-        for _, player in pairs(game.Players:GetPlayers()) do
-            if player ~= game.Players.LocalPlayer then
-                if val then
-                    createHighlight(player)
-                else
-                    removeHighlight(player)
-                end
-            end
-        end
-    end
-}):Colorpicker({
-    Default = HighlightColor,
-    Flag = "HighlightColor",
-    Callback = function(color)
-        HighlightColor = color
-        for _, highlight in pairs(playerHighlights) do
-            highlight.FillColor = HighlightColor
-            highlight.OutlineColor = HighlightColor
-        end
-    end
-})
-
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local workspaceCharacters = workspace:WaitForChild("Characters")
@@ -224,6 +160,81 @@ RunService.Heartbeat:Connect(function()
         end
     end
 end)
+
+local playerHighlights = {}
+local HighlightsEnabled = false
+local HighlightColor = Color3.new(1, 0, 0)
+local Settings = {
+    MaxDistance = 5000
+}
+
+local function createHighlight(player)
+    if playerHighlights[player] then return end
+    local char = player.Character
+    if not char then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "PlayerHighlightESP"
+    highlight.Adornee = char
+    highlight.FillColor = HighlightColor
+    highlight.OutlineColor = HighlightColor
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.Parent = workspace
+    playerHighlights[player] = highlight
+end
+
+local function removeHighlight(player)
+    if playerHighlights[player] then
+        playerHighlights[player]:Destroy()
+        playerHighlights[player] = nil
+    end
+end
+
+game.Players.PlayerAdded:Connect(function(player)
+    if player ~= game.Players.LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            if HighlightsEnabled then
+                createHighlight(player)
+            end
+        end)
+        if player.Character and HighlightsEnabled then
+            createHighlight(player)
+        end
+    end
+end)
+
+game.Players.PlayerRemoving:Connect(function(player)
+    removeHighlight(player)
+end)
+
+Test:Toggle({
+    Name = "Chams",
+    Flag = "Highlight",
+    Default = false,
+    Callback = function(val)
+        HighlightsEnabled = val
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                if val then
+                    createHighlight(player)
+                else
+                    removeHighlight(player)
+                end
+            end
+        end
+    end
+}):Colorpicker({
+    Default = HighlightColor,
+    Flag = "HighlightColor",
+    Callback = function(color)
+        HighlightColor = color
+        for _, highlight in pairs(playerHighlights) do
+            highlight.FillColor = HighlightColor
+            highlight.OutlineColor = HighlightColor
+        end
+    end
+})
 
 Test:Slider({
     Name = "Max Distance",
@@ -2398,6 +2409,7 @@ local function createESP(model)
 
     local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primaryPart then return end
+    if primaryPart:FindFirstChild("ESP") then return end
 
     local billboard = Instance.new("BillboardGui")
     billboard.Adornee = primaryPart
@@ -2419,9 +2431,13 @@ local function createESP(model)
 end
 
 local function EnableItemESP()
+    local character = localPlayer.Character
+    if not character or not character.PrimaryPart then return end
+
     for _, model in pairs(LootModels:GetChildren()) do
-        if (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) then
-            local distance = (model.PrimaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
+        local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if primaryPart then
+            local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
             if distance <= Settings.MaxDistance then
                 createESP(model)
             end
@@ -2431,13 +2447,31 @@ local function EnableItemESP()
     if not childAddedConnection then
         childAddedConnection = LootModels.ChildAdded:Connect(function(model)
             if not isItemESPEnabled then return end
-            if (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) then
-                local distance = (model.PrimaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
+            local character = localPlayer.Character
+            if not character or not character.PrimaryPart then return end
+
+            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
                 if distance <= Settings.MaxDistance then
                     createESP(model)
                 end
             end
         end)
+    end
+end
+
+local function DisableItemESP()
+    for _, model in pairs(LootModels:GetChildren()) do
+        local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if part and part:FindFirstChild("ESP") then
+            part.ESP:Destroy()
+        end
+    end
+
+    if childAddedConnection then
+        childAddedConnection:Disconnect()
+        childAddedConnection = nil
     end
 end
 
@@ -2449,16 +2483,7 @@ ItemsSection:Toggle({
         if isItemESPEnabled then
             EnableItemESP()
         else
-            for _, model in pairs(LootModels:GetChildren()) do
-                local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if part and part:FindFirstChild("ESP") then
-                    part.ESP:Destroy()
-                end
-            end
-            if childAddedConnection then
-                childAddedConnection:Disconnect()
-                childAddedConnection = nil
-            end
+            DisableItemESP()
         end
     end
 })
@@ -2473,12 +2498,7 @@ ItemsSection:Slider({
     Callback = function(val)
         Settings.MaxDistance = val
         if isItemESPEnabled then
-            for _, model in pairs(LootModels:GetChildren()) do
-                local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if part and part:FindFirstChild("ESP") then
-                    part.ESP:Destroy()
-                end
-            end
+            DisableItemESP()
             EnableItemESP()
         end
     end
