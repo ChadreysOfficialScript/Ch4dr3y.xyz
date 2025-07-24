@@ -7,12 +7,13 @@ local games = {
 getgenv().ConfigFolder = games[game.GameId] or "Chdr3y.xyz/universal"
 
 local legit = Window:Page({ Name = "Visuals" })
-local Test = legit:Section({ Name = "Visuals" })
+local Test = legit:Section({ Name = "Humans" })
 local worldSection = legit:Section({ Name = "world", Side = "Right" })
 local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" })
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 local ZombieSection = legit:Section({ Name = "Zombie Esp", Side = "Right" })
+local ItemsSection = legit:Section({ Name = "Items Esp", Side = "Right" })
 
 local Settings = {
     BoxEnabled = false,
@@ -138,6 +139,91 @@ Test:Toggle({
         end
     end
 })
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local workspaceCharacters = workspace:WaitForChild("Characters")
+local localPlayer = Players.LocalPlayer
+
+local isHeldItemESPEnabled = false
+
+local function createOrUpdateESP(character, gunName)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = character.HumanoidRootPart
+        local billboard = rootPart:FindFirstChild("GunESP")
+
+        if not billboard then
+            billboard = Instance.new("BillboardGui")
+            billboard.Name = "GunESP"
+            billboard.Adornee = rootPart
+            billboard.Size = UDim2.new(0, 120, 0, 40)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Name = "Label"
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.new(1, 0, 0)
+            textLabel.TextStrokeTransparency = 0
+            textLabel.Font = Enum.Font.SourceSansBold
+            textLabel.TextScaled = true
+            textLabel.Parent = billboard
+
+            billboard.Parent = rootPart
+        end
+
+        local label = billboard:FindFirstChild("Label")
+        if label then
+            label.Text = "Holding: " .. gunName
+        end
+    end
+end
+
+local function removeESP(character)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local esp = character.HumanoidRootPart:FindFirstChild("GunESP")
+        if esp then
+            esp:Destroy()
+        end
+    end
+end
+
+Test:Toggle({
+    Name = "Held item",
+    Flag = "HeldItemESP_Enabled",
+    Callback = function(enabled)
+        isHeldItemESPEnabled = enabled
+        if not isHeldItemESPEnabled then
+            for _, character in pairs(workspaceCharacters:GetChildren()) do
+                removeESP(character)
+            end
+        end
+    end
+})
+
+RunService.Heartbeat:Connect(function()
+    if not isHeldItemESPEnabled then return end
+
+    for _, character in pairs(workspaceCharacters:GetChildren()) do
+        if character.Name ~= localPlayer.Name then
+            local equipped = character:FindFirstChild("Equipped")
+            local holdingGun = false
+            if equipped then
+                for _, gun in pairs(equipped:GetChildren()) do
+                    if gun:IsA("BasePart") or gun:IsA("Model") then
+                        createOrUpdateESP(character, gun.Name)
+                        holdingGun = true
+                        break
+                    end
+                end
+            end
+            if not holdingGun then
+                removeESP(character)
+            end
+        end
+    end
+end)
 
 Test:Slider({
     Name = "Max Distance",
@@ -2294,5 +2380,146 @@ zombiesFolder.ChildAdded:Connect(function(zombie)
         freezeZombie(zombie)
     end
 end)
+
+local RunService = game:GetService("RunService")
+local LootModels = game:GetService("ReplicatedStorage"):WaitForChild("Assets"):WaitForChild("LootModels")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local Settings = {
+    MaxDistance = 5000,
+    ShowNames = true,
+    ShowDistance = false
+}
+
+local isItemESPEnabled = false
+
+local function createESP(model)
+    if not model:IsA("Model") then return end
+
+    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then return end
+
+    local distance = (primaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
+    if distance > Settings.MaxDistance then
+        return
+    end
+
+    if primaryPart:FindFirstChild("ESP") then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = primaryPart
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Name = "ESP"
+
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.new(1, 0, 0)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextScaled = true
+
+    if Settings.ShowNames and Settings.ShowDistance then
+        textLabel.Text = model.Name .. " [" .. math.floor(distance) .. "m]"
+    elseif Settings.ShowNames then
+        textLabel.Text = model.Name
+    elseif Settings.ShowDistance then
+        textLabel.Text = "[" .. math.floor(distance) .. "m]"
+    else
+        textLabel.Text = ""
+    end
+
+    billboard.Parent = primaryPart
+end
+
+local function removeESP(model)
+    if not model:IsA("Model") then return end
+
+    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then return end
+
+    local esp = primaryPart:FindFirstChild("ESP")
+    if esp then
+        esp:Destroy()
+    end
+end
+
+local function refreshESPs()
+    for _, model in pairs(LootModels:GetChildren()) do
+        removeESP(model)
+        if isItemESPEnabled then
+            createESP(model)
+        end
+    end
+end
+
+ItemsSection:Toggle({
+    Name = "Item ESP",
+    Flag = "ItemESP_Enabled",
+    Callback = function(enabled)
+        isItemESPEnabled = enabled
+
+        if isItemESPEnabled then
+            refreshESPs()
+
+            if not LootModels.ChildAddedConnection then
+                LootModels.ChildAddedConnection = LootModels.ChildAdded:Connect(function(model)
+                    if isItemESPEnabled then
+                        createESP(model)
+                    end
+                end)
+            end
+        else
+            for _, model in pairs(LootModels:GetChildren()) do
+                removeESP(model)
+            end
+
+            if LootModels.ChildAddedConnection then
+                LootModels.ChildAddedConnection:Disconnect()
+                LootModels.ChildAddedConnection = nil
+            end
+        end
+    end
+})
+
+ItemsSection:Toggle({
+    Name = "Show Names",
+    Flag = "ShowNames",
+    Callback = function(enabled)
+        Settings.ShowNames = enabled
+        if isItemESPEnabled then
+            refreshESPs()
+        end
+    end
+})
+
+ItemsSection:Toggle({
+    Name = "Show Distance",
+    Flag = "ShowDistance",
+    Callback = function(enabled)
+        Settings.ShowDistance = enabled
+        if isItemESPEnabled then
+            refreshESPs()
+        end
+    end
+})
+
+ItemsSection:Slider({
+    Name = "Max Distance",
+    Flag = "MaxDistance",
+    Min = 1000,
+    Max = 10000,
+    Default = Settings.MaxDistance,
+    Rounding = 0,
+    Callback = function(value)
+        Settings.MaxDistance = value
+        if isItemESPEnabled then
+            refreshESPs()
+        end
+    end
+})
 
 Library:LoadConfigTab(Window)
