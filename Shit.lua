@@ -13,7 +13,7 @@ local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" }
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 local ZombieSection = legit:Section({ Name = "Zombie Esp", Side = "Right" })
-local ItemsSection = legit:Section({ Name = "Items Esp", Side = "Right" })
+local ItemsSection = legit:Section({ Name = "Items Esp", Side = "Left" })
 
 local Settings = {
     BoxEnabled = false,
@@ -2387,25 +2387,17 @@ local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
 local Settings = {
-    MaxDistance = 5000,
-    ShowNames = true,
-    ShowDistance = false
+    MaxDistance = 5000
 }
 
 local isItemESPEnabled = false
+local childAddedConnection
 
 local function createESP(model)
     if not model:IsA("Model") then return end
 
     local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primaryPart then return end
-
-    local distance = (primaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
-    if distance > Settings.MaxDistance then
-        return
-    end
-
-    if primaryPart:FindFirstChild("ESP") then return end
 
     local billboard = Instance.new("BillboardGui")
     billboard.Adornee = primaryPart
@@ -2419,105 +2411,75 @@ local function createESP(model)
     textLabel.BackgroundTransparency = 1
     textLabel.TextColor3 = Color3.new(1, 0, 0)
     textLabel.TextStrokeTransparency = 0
+    textLabel.Text = model.Name
     textLabel.Font = Enum.Font.SourceSansBold
     textLabel.TextScaled = true
-
-    if Settings.ShowNames and Settings.ShowDistance then
-        textLabel.Text = model.Name .. " [" .. math.floor(distance) .. "m]"
-    elseif Settings.ShowNames then
-        textLabel.Text = model.Name
-    elseif Settings.ShowDistance then
-        textLabel.Text = "[" .. math.floor(distance) .. "m]"
-    else
-        textLabel.Text = ""
-    end
 
     billboard.Parent = primaryPart
 end
 
-local function removeESP(model)
-    if not model:IsA("Model") then return end
-
-    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-    if not primaryPart then return end
-
-    local esp = primaryPart:FindFirstChild("ESP")
-    if esp then
-        esp:Destroy()
-    end
-end
-
-local function refreshESPs()
+local function EnableItemESP()
     for _, model in pairs(LootModels:GetChildren()) do
-        removeESP(model)
-        if isItemESPEnabled then
-            createESP(model)
+        if (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) then
+            local distance = (model.PrimaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
+            if distance <= Settings.MaxDistance then
+                createESP(model)
+            end
         end
+    end
+
+    if not childAddedConnection then
+        childAddedConnection = LootModels.ChildAdded:Connect(function(model)
+            if not isItemESPEnabled then return end
+            if (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")) then
+                local distance = (model.PrimaryPart.Position - localPlayer.Character.PrimaryPart.Position).Magnitude
+                if distance <= Settings.MaxDistance then
+                    createESP(model)
+                end
+            end
+        end)
     end
 end
 
 ItemsSection:Toggle({
     Name = "Item ESP",
-    Flag = "ItemESP_Enabled",
-    Callback = function(enabled)
-        isItemESPEnabled = enabled
-
+    Flag = "EnableItemESP",
+    Callback = function(state)
+        isItemESPEnabled = state
         if isItemESPEnabled then
-            refreshESPs()
-
-            if not LootModels.ChildAddedConnection then
-                LootModels.ChildAddedConnection = LootModels.ChildAdded:Connect(function(model)
-                    if isItemESPEnabled then
-                        createESP(model)
-                    end
-                end)
-            end
+            EnableItemESP()
         else
             for _, model in pairs(LootModels:GetChildren()) do
-                removeESP(model)
+                local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+                if part and part:FindFirstChild("ESP") then
+                    part.ESP:Destroy()
+                end
             end
-
-            if LootModels.ChildAddedConnection then
-                LootModels.ChildAddedConnection:Disconnect()
-                LootModels.ChildAddedConnection = nil
+            if childAddedConnection then
+                childAddedConnection:Disconnect()
+                childAddedConnection = nil
             end
-        end
-    end
-})
-
-ItemsSection:Toggle({
-    Name = "Show Names",
-    Flag = "ShowNames",
-    Callback = function(enabled)
-        Settings.ShowNames = enabled
-        if isItemESPEnabled then
-            refreshESPs()
-        end
-    end
-})
-
-ItemsSection:Toggle({
-    Name = "Show Distance",
-    Flag = "ShowDistance",
-    Callback = function(enabled)
-        Settings.ShowDistance = enabled
-        if isItemESPEnabled then
-            refreshESPs()
         end
     end
 })
 
 ItemsSection:Slider({
     Name = "Max Distance",
-    Flag = "MaxDistance",
-    Min = 1000,
+    Flag = "ESP_Distance",
+    Min = 100,
     Max = 10000,
     Default = Settings.MaxDistance,
     Rounding = 0,
-    Callback = function(value)
-        Settings.MaxDistance = value
+    Callback = function(val)
+        Settings.MaxDistance = val
         if isItemESPEnabled then
-            refreshESPs()
+            for _, model in pairs(LootModels:GetChildren()) do
+                local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+                if part and part:FindFirstChild("ESP") then
+                    part.ESP:Destroy()
+                end
+            end
+            EnableItemESP()
         end
     end
 })
