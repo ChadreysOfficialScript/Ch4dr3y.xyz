@@ -1079,43 +1079,6 @@ gunMods:Toggle({
     end
 })
 
-local ReplicatedFirst = game:GetService("ReplicatedFirst")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local FrameworkModule = require(ReplicatedFirst:WaitForChild("Framework"))
-FrameworkModule:WaitForLoaded()
-
-local BulletFire = FrameworkModule.Libraries.Bullets.Fire
-
-
-local originalFire = Bullets.Fire
-
-local noSpreadEnabled = false
-local spreadScale = 0
-
-gunMods:Toggle({
-    Name = "No Spread",
-    Flag = "No Spread",
-    Callback = function(state)
-        noSpreadEnabled = state
-    end
-})
-
-Bullets.Fire = function(...)
-    local args = {...}
-    local data = args[2]
-
-    if typeof(data) == "table" and data.Spread then
-        if noSpreadEnabled then
-            data.Spread = Vector3.new(0, 0, 0)
-        else
-            data.Spread = data.Spread * spreadScale
-        end
-    end
-
-    return originalFire(unpack(args))
-end
-
 gunMods:Slider({
     Name = "Recoil Control",
     Flag = "Recoil",
@@ -1128,17 +1091,6 @@ gunMods:Slider({
     end
 })
 
-gunMods:Slider({
-    Name = "Spread Amount",
-    Flag = "SpreadAmount",
-    Min = 0,
-    Max = 100,
-    Default = 0,
-    Decimals = 1,
-    Callback = function(value)
-        spreadScale = value / 100
-    end
-})
 
 local SilentAimEnabled = false
 local MaxDistance = 1000
