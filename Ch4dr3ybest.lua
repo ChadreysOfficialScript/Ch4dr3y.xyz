@@ -651,15 +651,20 @@ local function removeVehicleESP(model)
     local highlight = model:FindFirstChild("VehicleHighlight")
     if highlight then highlight:Destroy() end
 
-    local gui = model:FindFirstChild("VehicleBillboard")
-    if gui then gui:Destroy() end
+    if espDrawingsVehicles[model] then
+        if espDrawingsVehicles[model].nameText then
+            espDrawingsVehicles[model].nameText:Remove()
+        end
+        if espDrawingsVehicles[model].distanceText then
+            espDrawingsVehicles[model].distanceText:Remove()
+        end
+        espDrawingsVehicles[model] = nil
+    end
 
     if espConnectionsVehicles[model] then
         espConnectionsVehicles[model]:Disconnect()
         espConnectionsVehicles[model] = nil
     end
-
-    espDrawingsVehicles[model] = nil
 end
 
 local function createVehicleHighlight(model)
@@ -681,60 +686,72 @@ local function createVehicleNameDistance(model)
     local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primary then return end
 
-    removeVehicleESP(model)
+    if espDrawingsVehicles[model] then
+        if espDrawingsVehicles[model].nameText then espDrawingsVehicles[model].nameText:Remove() end
+        if espDrawingsVehicles[model].distanceText then espDrawingsVehicles[model].distanceText:Remove() end
+        espDrawingsVehicles[model] = nil
+    end
+    if espConnectionsVehicles[model] then
+        espConnectionsVehicles[model]:Disconnect()
+        espConnectionsVehicles[model] = nil
+    end
 
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "VehicleBillboard"
-    billboard.Adornee = primary
-    billboard.Size = UDim2.new(0, 200, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = model
+    local nameText = Drawing.new("Text")
+    nameText.Center = true
+    nameText.Outline = true
+    nameText.Visible = false
+    nameText.Font = Enum.Font.GothamBold
+    nameText.Size = 16
+    nameText.Color = vehicleNameColor
 
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "NameLabel"
-    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    nameLabel.Position = UDim2.new(0, 0, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.TextColor3 = vehicleNameColor
-    nameLabel.TextStrokeTransparency = 0
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 15
-    nameLabel.Text = model.Name
-    nameLabel.Visible = vehicleShowNames
-    nameLabel.Parent = billboard
+    local distanceText = Drawing.new("Text")
+    distanceText.Center = true
+    distanceText.Outline = true
+    distanceText.Visible = false
+    distanceText.Font = Enum.Font.GothamBold
+    distanceText.Size = 16
+    distanceText.Color = vehicleDistanceColor
 
-    local distanceLabel = Instance.new("TextLabel")
-    distanceLabel.Name = "DistanceLabel"
-    distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
-    distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    distanceLabel.BackgroundTransparency = 1
-    distanceLabel.TextColor3 = vehicleDistanceColor
-    distanceLabel.TextStrokeTransparency = 0
-    distanceLabel.Font = Enum.Font.GothamBold
-    distanceLabel.TextSize = 15
-    distanceLabel.Text = ""
-    distanceLabel.Visible = vehicleShowDistance
-    distanceLabel.Parent = billboard
+    espDrawingsVehicles[model] = {nameText = nameText, distanceText = distanceText}
 
-    espDrawingsVehicles[model] = {
-        gui = billboard,
-        nameLabel = nameLabel,
-        distanceLabel = distanceLabel
-    }
+    local camera = workspace.CurrentCamera
 
     espConnectionsVehicles[model] = RunService.RenderStepped:Connect(function()
-        if not model or not model.Parent or not primary or not primary:IsDescendantOf(workspace) then
-            removeVehicleESP(model)
+        if not model or not model.Parent or not primary or not primary.Parent then
+            nameText.Visible = false
+            distanceText.Visible = false
+            if espConnectionsVehicles[model] then
+                espConnectionsVehicles[model]:Disconnect()
+                espConnectionsVehicles[model] = nil
+            end
+            nameText:Remove()
+            distanceText:Remove()
+            espDrawingsVehicles[model] = nil
             return
         end
 
-        local camera = workspace.CurrentCamera
+        local pos, onScreen = camera:WorldToViewportPoint(primary.Position + Vector3.new(0, 3, 0))
         local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
         local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5)
 
-        if distanceLabel then
-            distanceLabel.Text = tostring(distanceMeters) .. " m"
+        if onScreen then
+            nameText.Position = Vector2.new(pos.X, pos.Y)
+            distanceText.Position = Vector2.new(pos.X, pos.Y + 18)
+
+            nameText.Visible = vehicleShowNames
+            distanceText.Visible = vehicleShowDistance
+
+            if vehicleShowNames then
+                nameText.Text = model.Name
+                nameText.Color = vehicleNameColor
+            end
+            if vehicleShowDistance then
+                distanceText.Text = tostring(distanceMeters) .. " m"
+                distanceText.Color = vehicleDistanceColor
+            end
+        else
+            nameText.Visible = false
+            distanceText.Visible = false
         end
     end)
 end
@@ -807,8 +824,8 @@ VehicleSection:Toggle({
     Callback = function(color)
         vehicleNameColor = color
         for _, v in pairs(espDrawingsVehicles) do
-            if v.nameLabel then
-                v.nameLabel.TextColor3 = color
+            if v.nameText then
+                v.nameText.Color = color
             end
         end
     end
@@ -829,8 +846,8 @@ VehicleSection:Toggle({
     Callback = function(color)
         vehicleDistanceColor = color
         for _, v in pairs(espDrawingsVehicles) do
-            if v.distanceLabel then
-                v.distanceLabel.TextColor3 = color
+            if v.distanceText then
+                v.distanceText.Color = color
             end
         end
     end
@@ -990,6 +1007,48 @@ local meleeSpeed = combat:Section({ Name = "Melee Speed", Side = "Right" })
 local CustomHitSound = combat:Section({ Name = "HitSounds", Side = "Left" })
 local AntiZombie = combat:Section({ Name = "Anti Zombie", Side = "Right" })
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Firearm = nil
+task.spawn(function()
+    setthreadidentity(2)
+    Firearm = require(ReplicatedStorage.Client.Abstracts.ItemInitializers.Firearm)
+end)
+
+repeat task.wait() until Firearm
+
+local Framework = require(ReplicatedFirst:WaitForChild("Framework"))
+Framework:WaitForLoaded()
+
+local Animators = Framework.Classes.Animators
+local Firearms = Framework.Classes.Firearm
+
+local AnimatedReload = getupvalue(Firearm, 7)
+
+setupvalue(Firearm, 7, function(...)
+    if Window.Flags["AR2/InstantReload"] then
+        local Args = {...}
+        for Index = 0, Args[3].LoopCount do
+            Args[4]("Commit", "Load")
+        end
+        Args[4]("Commit", "End")
+        return true
+    end
+
+    return AnimatedReload(...)
+end)
+
+gunMods:Toggle({
+    Name = "Instant Reload",
+    Flag = "AR2/InstantReload",
+    Callback = function(state)
+    end
+})
+
 local ReplicatedFirst = cloneref(game:GetService("ReplicatedFirst"))
 local Bullets = require(ReplicatedFirst:WaitForChild("Framework")).Libraries.Bullets
 
@@ -1029,6 +1088,67 @@ gunMods:Slider({
     Decimals = 1,
     Callback = function(value)
         recoilScale = value / 100
+    end
+})
+
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local FrameworkModule = require(ReplicatedFirst:WaitForChild("Framework"))
+FrameworkModule:WaitForLoaded()
+
+local BulletFire = FrameworkModule.Libraries.Bullets.Fire
+
+
+local originalFire = Bullets.Fire
+
+local noSpreadEnabled = false
+local spreadScale = 0
+
+gunMods:Toggle({
+    Name = "No Spread",
+    Flag = "No Spread",
+    Callback = function(state)
+        noSpreadEnabled = state
+    end
+})
+
+Bullets.Fire = function(...)
+    local args = {...}
+    local data = args[2]
+
+    if typeof(data) == "table" and data.Spread then
+        if noSpreadEnabled then
+            data.Spread = Vector3.new(0, 0, 0)
+        else
+            data.Spread = data.Spread * spreadScale
+        end
+    end
+
+    return originalFire(unpack(args))
+end
+
+gunMods:Slider({
+    Name = "Recoil Control",
+    Flag = "Recoil",
+    Min = 0,
+    Max = 100,
+    Default = 100,
+    Decimals = 1,
+    Callback = function(value)
+        recoilScale = value / 100
+    end
+})
+
+gunMods:Slider({
+    Name = "Spread Amount",
+    Flag = "SpreadAmount",
+    Min = 0,
+    Max = 100,
+    Default = 0,
+    Decimals = 1,
+    Callback = function(value)
+        spreadScale = value / 100
     end
 })
 
@@ -1295,7 +1415,7 @@ local FallModifier = 0.5
 local HoldingSpace = false
 
 SelfChamsSection:Toggle({
-    Name = "Infinite Jump",
+    Name = "Infinite Jump (Dont Spam it)",
     Flag = "InfiniteJump/Enabled",
     Callback = function(state)
         InfiniteJumpEnabled = state
