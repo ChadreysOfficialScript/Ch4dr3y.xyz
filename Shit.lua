@@ -433,7 +433,6 @@ end)
 
 local corpsesFolder = workspace:WaitForChild("Corpses")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 
 local corpseESPEnabled = false
@@ -444,125 +443,84 @@ local corpseHighlightColor = Color3.fromRGB(255, 0, 0)
 local corpseNameColor = Color3.fromRGB(255, 255, 255)
 local corpseDistanceColor = Color3.fromRGB(255, 255, 255)
 
-local espConnections = {}
-local espDrawings = {}
-
-local function removeESP(model)
-    local highlight = model:FindFirstChild("CorpseHighlight")
-    if highlight then highlight:Destroy() end
-
-    if espDrawings[model] then
-        if espDrawings[model].nameText then
-            espDrawings[model].nameText:Remove()
-        end
-        if espDrawings[model].distanceText then
-            espDrawings[model].distanceText:Remove()
-        end
-        espDrawings[model] = nil
-    end
-
-    if espConnections[model] then
-        espConnections[model]:Disconnect()
-        espConnections[model] = nil
-    end
-
-    local billboardGui = model:FindFirstChild("CorpseESP")
-    if billboardGui then billboardGui:Destroy() end
-end
-
 local function isIgnoredCorpse(model)
     return model.Name:lower():find("infected") ~= nil
 end
 
+local function removeESP(model)
+    local highlight = model:FindFirstChild("CorpseHighlight")
+    if highlight then highlight:Destroy() end
+    local espGui = model:FindFirstChild("CorpseESP")
+    if espGui then espGui:Destroy() end
+end
+
 local function createHighlight(model)
     if isIgnoredCorpse(model) then return end
-    local highlight = model:FindFirstChild("CorpseHighlight")
-    if not highlight then
-        highlight = Instance.new("Highlight")
+    if not model:FindFirstChild("CorpseHighlight") then
+        local highlight = Instance.new("Highlight")
         highlight.Name = "CorpseHighlight"
+        highlight.FillColor = corpseHighlightColor
+        highlight.OutlineColor = Color3.new(1, 1, 1)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
         highlight.Adornee = model
         highlight.Parent = model
     end
-    highlight.FillColor = corpseHighlightColor
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
 end
 
-local function createNameDistance(model)
+local function createBillboard(model)
     if isIgnoredCorpse(model) then return end
-
     local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primary then return end
+    removeESP(model)
 
-    if espDrawings[model] then
-        if espDrawings[model].nameText then espDrawings[model].nameText:Remove() end
-        if espDrawings[model].distanceText then espDrawings[model].distanceText:Remove() end
-        espDrawings[model] = nil
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "CorpseESP"
+    billboard.Adornee = primary
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = model
+
+    if showNames then
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "CorpseName"
+        nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        nameLabel.Position = UDim2.new(0, 0, 0, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextSize = 16
+        nameLabel.TextColor3 = corpseNameColor
+        nameLabel.TextStrokeTransparency = 0.5
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.Text = model.Name
+        nameLabel.Parent = billboard
     end
-    if espConnections[model] then
-        espConnections[model]:Disconnect()
-        espConnections[model] = nil
+
+    if showDistance then
+        local distanceLabel = Instance.new("TextLabel")
+        distanceLabel.Name = "CorpseDistance"
+        distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+        distanceLabel.BackgroundTransparency = 1
+        distanceLabel.TextSize = 16
+        distanceLabel.TextColor3 = corpseDistanceColor
+        distanceLabel.TextStrokeTransparency = 0.5
+        distanceLabel.Font = Enum.Font.GothamBold
+        distanceLabel.Text = "..."
+        distanceLabel.Parent = billboard
+
+        local RunService = game:GetService("RunService")
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            if not model or not model.Parent or not primary or not primary.Parent then
+                if connection then connection:Disconnect() end
+                return
+            end
+            local distance = (workspace.CurrentCamera.CFrame.Position - primary.Position).Magnitude
+            local meters = math.floor(distance * 0.28)
+            distanceLabel.Text = tostring(meters) .. "m"
+        end)
     end
-
-    local nameText = Drawing.new("Text")
-    nameText.Center = true
-    nameText.Outline = true
-    nameText.Visible = false
-    nameText.Font = Enum.Font.GothamBold
-    nameText.Size = 16
-    nameText.Color = corpseNameColor
-
-    local distanceText = Drawing.new("Text")
-    distanceText.Center = true
-    distanceText.Outline = true
-    distanceText.Visible = false
-    distanceText.Font = Enum.Font.GothamBold
-    distanceText.Size = 16
-    distanceText.Color = corpseDistanceColor
-
-    espDrawings[model] = {nameText = nameText, distanceText = distanceText}
-
-    local camera = workspace.CurrentCamera
-
-    espConnections[model] = RunService.RenderStepped:Connect(function()
-        if not model or not model.Parent or not primary or not primary.Parent then
-            nameText.Visible = false
-            distanceText.Visible = false
-            if espConnections[model] then
-                espConnections[model]:Disconnect()
-                espConnections[model] = nil
-            end
-            nameText:Remove()
-            distanceText:Remove()
-            espDrawings[model] = nil
-            return
-        end
-
-        local pos, onScreen = camera:WorldToViewportPoint(primary.Position + Vector3.new(0, 3, 0))
-        local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
-        local distanceMeters = math.floor(distanceStuds * 0.28)
-
-        if onScreen then
-            nameText.Position = Vector2.new(pos.X, pos.Y)
-            distanceText.Position = Vector2.new(pos.X, pos.Y + 18)
-
-            nameText.Visible = showNames
-            distanceText.Visible = showDistance
-
-            if showNames then
-                nameText.Text = model.Name
-                nameText.Color = corpseNameColor
-            end
-            if showDistance then
-                distanceText.Text = tostring(distanceMeters) .. "m"
-                distanceText.Color = corpseDistanceColor
-            end
-        else
-            nameText.Visible = false
-            distanceText.Visible = false
-        end
-    end)
 end
 
 local function updateCorpseESP(enabled)
@@ -571,7 +529,7 @@ local function updateCorpseESP(enabled)
             if enabled then
                 createHighlight(corpse)
                 if showNames or showDistance then
-                    createNameDistance(corpse)
+                    createBillboard(corpse)
                 else
                     removeESP(corpse)
                 end
@@ -593,7 +551,7 @@ corpsesFolder.ChildAdded:Connect(function(newCorpse)
             if corpseESPEnabled and not isIgnoredCorpse(newCorpse) then
                 createHighlight(newCorpse)
                 if showNames or showDistance then
-                    createNameDistance(newCorpse)
+                    createBillboard(newCorpse)
                 end
             end
         end)
@@ -605,7 +563,7 @@ CorpseSection:Toggle({
     Flag = "CorpseESP",
     Callback = function(state)
         corpseESPEnabled = state
-        updateCorpseESP(corpseESPEnabled)
+        updateCorpseESP(state)
     end
 }):Colorpicker({
     Default = corpseHighlightColor,
@@ -635,9 +593,13 @@ CorpseSection:Toggle({
     Flag = "CorpseNameColor",
     Callback = function(color)
         corpseNameColor = color
-        for _, v in pairs(espDrawings) do
-            if v.nameText then
-                v.nameText.Color = color
+        for _, corpse in pairs(corpsesFolder:GetChildren()) do
+            local espGui = corpse:FindFirstChild("CorpseESP")
+            if espGui then
+                local label = espGui:FindFirstChild("CorpseName")
+                if label then
+                    label.TextColor3 = color
+                end
             end
         end
     end
@@ -657,9 +619,13 @@ CorpseSection:Toggle({
     Flag = "CorpseDistanceColor",
     Callback = function(color)
         corpseDistanceColor = color
-        for _, v in pairs(espDrawings) do
-            if v.distanceText then
-                v.distanceText.Color = color
+        for _, corpse in pairs(corpsesFolder:GetChildren()) do
+            local espGui = corpse:FindFirstChild("CorpseESP")
+            if espGui then
+                local label = espGui:FindFirstChild("CorpseDistance")
+                if label then
+                    label.TextColor3 = color
+                end
             end
         end
     end
@@ -685,20 +651,15 @@ local function removeVehicleESP(model)
     local highlight = model:FindFirstChild("VehicleHighlight")
     if highlight then highlight:Destroy() end
 
-    if espDrawingsVehicles[model] then
-        if espDrawingsVehicles[model].nameText then
-            espDrawingsVehicles[model].nameText:Remove()
-        end
-        if espDrawingsVehicles[model].distanceText then
-            espDrawingsVehicles[model].distanceText:Remove()
-        end
-        espDrawingsVehicles[model] = nil
-    end
+    local gui = model:FindFirstChild("VehicleBillboard")
+    if gui then gui:Destroy() end
 
     if espConnectionsVehicles[model] then
         espConnectionsVehicles[model]:Disconnect()
         espConnectionsVehicles[model] = nil
     end
+
+    espDrawingsVehicles[model] = nil
 end
 
 local function createVehicleHighlight(model)
@@ -720,72 +681,60 @@ local function createVehicleNameDistance(model)
     local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primary then return end
 
-    if espDrawingsVehicles[model] then
-        if espDrawingsVehicles[model].nameText then espDrawingsVehicles[model].nameText:Remove() end
-        if espDrawingsVehicles[model].distanceText then espDrawingsVehicles[model].distanceText:Remove() end
-        espDrawingsVehicles[model] = nil
-    end
-    if espConnectionsVehicles[model] then
-        espConnectionsVehicles[model]:Disconnect()
-        espConnectionsVehicles[model] = nil
-    end
+    removeVehicleESP(model)
 
-    local nameText = Drawing.new("Text")
-    nameText.Center = true
-    nameText.Outline = true
-    nameText.Visible = false
-    nameText.Font = Enum.Font.GothamBold
-    nameText.Size = 16
-    nameText.Color = vehicleNameColor
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VehicleBillboard"
+    billboard.Adornee = primary
+    billboard.Size = UDim2.new(0, 200, 0, 30)
+    billboard.StudsOffset = Vector3.new(0, 5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = model
 
-    local distanceText = Drawing.new("Text")
-    distanceText.Center = true
-    distanceText.Outline = true
-    distanceText.Visible = false
-    distanceText.Font = Enum.Font.GothamBold
-    distanceText.Size = 16
-    distanceText.Color = vehicleDistanceColor
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = vehicleNameColor
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 15
+    nameLabel.Text = model.Name
+    nameLabel.Visible = vehicleShowNames
+    nameLabel.Parent = billboard
 
-    espDrawingsVehicles[model] = {nameText = nameText, distanceText = distanceText}
+    local distanceLabel = Instance.new("TextLabel")
+    distanceLabel.Name = "DistanceLabel"
+    distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distanceLabel.BackgroundTransparency = 1
+    distanceLabel.TextColor3 = vehicleDistanceColor
+    distanceLabel.TextStrokeTransparency = 0
+    distanceLabel.Font = Enum.Font.GothamBold
+    distanceLabel.TextSize = 15
+    distanceLabel.Text = ""
+    distanceLabel.Visible = vehicleShowDistance
+    distanceLabel.Parent = billboard
 
-    local camera = workspace.CurrentCamera
+    espDrawingsVehicles[model] = {
+        gui = billboard,
+        nameLabel = nameLabel,
+        distanceLabel = distanceLabel
+    }
 
     espConnectionsVehicles[model] = RunService.RenderStepped:Connect(function()
-        if not model or not model.Parent or not primary or not primary.Parent then
-            nameText.Visible = false
-            distanceText.Visible = false
-            if espConnectionsVehicles[model] then
-                espConnectionsVehicles[model]:Disconnect()
-                espConnectionsVehicles[model] = nil
-            end
-            nameText:Remove()
-            distanceText:Remove()
-            espDrawingsVehicles[model] = nil
+        if not model or not model.Parent or not primary or not primary:IsDescendantOf(workspace) then
+            removeVehicleESP(model)
             return
         end
 
-        local pos, onScreen = camera:WorldToViewportPoint(primary.Position + Vector3.new(0, 3, 0))
+        local camera = workspace.CurrentCamera
         local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
         local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5)
 
-        if onScreen then
-            nameText.Position = Vector2.new(pos.X, pos.Y)
-            distanceText.Position = Vector2.new(pos.X, pos.Y + 18)
-
-            nameText.Visible = vehicleShowNames
-            distanceText.Visible = vehicleShowDistance
-
-            if vehicleShowNames then
-                nameText.Text = model.Name
-                nameText.Color = vehicleNameColor
-            end
-            if vehicleShowDistance then
-                distanceText.Text = tostring(distanceMeters) .. " m"
-                distanceText.Color = vehicleDistanceColor
-            end
-        else
-            nameText.Visible = false
-            distanceText.Visible = false
+        if distanceLabel then
+            distanceLabel.Text = tostring(distanceMeters) .. " m"
         end
     end)
 end
@@ -858,8 +807,8 @@ VehicleSection:Toggle({
     Callback = function(color)
         vehicleNameColor = color
         for _, v in pairs(espDrawingsVehicles) do
-            if v.nameText then
-                v.nameText.Color = color
+            if v.nameLabel then
+                v.nameLabel.TextColor3 = color
             end
         end
     end
@@ -880,8 +829,8 @@ VehicleSection:Toggle({
     Callback = function(color)
         vehicleDistanceColor = color
         for _, v in pairs(espDrawingsVehicles) do
-            if v.distanceText then
-                v.distanceText.Color = color
+            if v.distanceLabel then
+                v.distanceLabel.TextColor3 = color
             end
         end
     end
