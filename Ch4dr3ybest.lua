@@ -1079,18 +1079,6 @@ gunMods:Toggle({
     end
 })
 
-gunMods:Slider({
-    Name = "Recoil Control",
-    Flag = "Recoil",
-    Min = 0,
-    Max = 100,
-    Default = 100,
-    Decimals = 1,
-    Callback = function(value)
-        recoilScale = value / 100
-    end
-})
-
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
