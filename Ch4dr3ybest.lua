@@ -2504,13 +2504,14 @@ ItemsSection:Slider({
     end
 })
 
+
 local isHeliCrashESPEnabled = false
 local maxDistance = 1000
+local espMap = {}
 
 local function enableHeliCrashESP()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
-
     local player = Players.LocalPlayer
     local ESPFolder = player:WaitForChild("PlayerGui")
 
@@ -2524,25 +2525,15 @@ local function enableHeliCrashESP()
         ["LongswordStone01"] = true,
     }
 
-    local espMap = {}
-
     local function createESP(model)
-        if not model:IsA("Model") or espMap[model] then return end
-        if not model.PrimaryPart then
-            for _, part in ipairs(model:GetChildren()) do
-                if part:IsA("BasePart") then
-                    model.PrimaryPart = part
-                    break
-                end
-            end
-        end
-        if not model.PrimaryPart then return end
+        if not model:IsA("Model") or espMap[model] or not model.PrimaryPart then return end
 
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "ESPBillboard"
         billboard.Adornee = model.PrimaryPart
         billboard.Size = UDim2.new(0, 150, 0, 50)
         billboard.AlwaysOnTop = true
+        billboard.Parent = ESPFolder
 
         local textLabel = Instance.new("TextLabel")
         textLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -2554,10 +2545,9 @@ local function enableHeliCrashESP()
         textLabel.TextSize = 14
         textLabel.Parent = billboard
 
-        billboard.Parent = ESPFolder
         espMap[model] = { Billboard = billboard, Label = textLabel }
 
-        espMap[model].Connection = RunService.RenderStepped:Connect(function()
+        espMap[model].Connection = RunService.Heartbeat:Connect(function()
             if model.PrimaryPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local dist = (model.PrimaryPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
                 if dist <= maxDistance then
