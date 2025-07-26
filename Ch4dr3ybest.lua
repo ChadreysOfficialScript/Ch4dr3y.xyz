@@ -14,6 +14,7 @@ local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 local ZombieSection = legit:Section({ Name = "Zombie Esp", Side = "Right" })
 local ItemsSection = legit:Section({ Name = "Items Esp", Side = "Left" })
+local HeliCrashSection = legit:Section({ Name = "Heli Crash All Sites", Side = "Left" })
 
 local Settings = {
     BoxEnabled = false,
@@ -632,9 +633,8 @@ CorpseSection:Toggle({
 })
 
 local vehiclesFolder = workspace:WaitForChild("Vehicles")
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
 local vehicleESPEnabled = false
 local vehicleShowNames = false
@@ -644,27 +644,16 @@ local vehicleESPColor = Color3.fromRGB(0, 0, 255)
 local vehicleNameColor = Color3.fromRGB(255, 255, 255)
 local vehicleDistanceColor = Color3.fromRGB(255, 255, 255)
 
-local espConnectionsVehicles = {}
-local espDrawingsVehicles = {}
+local espVehicles = {}
 
 local function removeVehicleESP(model)
     local highlight = model:FindFirstChild("VehicleHighlight")
     if highlight then highlight:Destroy() end
 
-    if espDrawingsVehicles[model] then
-        if espDrawingsVehicles[model].nameText then
-            espDrawingsVehicles[model].nameText:Remove()
-        end
-        if espDrawingsVehicles[model].distanceText then
-            espDrawingsVehicles[model].distanceText:Remove()
-        end
-        espDrawingsVehicles[model] = nil
-    end
+    local billboard = model:FindFirstChild("VehicleESPBillboard")
+    if billboard then billboard:Destroy() end
 
-    if espConnectionsVehicles[model] then
-        espConnectionsVehicles[model]:Disconnect()
-        espConnectionsVehicles[model] = nil
-    end
+    espVehicles[model] = nil
 end
 
 local function createVehicleHighlight(model)
@@ -686,86 +675,68 @@ local function createVehicleNameDistance(model)
     local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not primary then return end
 
-    if espDrawingsVehicles[model] then
-        if espDrawingsVehicles[model].nameText then espDrawingsVehicles[model].nameText:Remove() end
-        if espDrawingsVehicles[model].distanceText then espDrawingsVehicles[model].distanceText:Remove() end
-        espDrawingsVehicles[model] = nil
-    end
-    if espConnectionsVehicles[model] then
-        espConnectionsVehicles[model]:Disconnect()
-        espConnectionsVehicles[model] = nil
+    local oldBillboard = model:FindFirstChild("VehicleESPBillboard")
+    if oldBillboard then
+        oldBillboard:Destroy()
     end
 
-    local nameText = Drawing.new("Text")
-    nameText.Center = true
-    nameText.Outline = true
-    nameText.Visible = false
-    nameText.Font = Enum.Font.GothamBold
-    nameText.Size = 16
-    nameText.Color = vehicleNameColor
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "VehicleESPBillboard"
+    billboard.Adornee = primary
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 150, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Parent = model
 
-    local distanceText = Drawing.new("Text")
-    distanceText.Center = true
-    distanceText.Outline = true
-    distanceText.Visible = false
-    distanceText.Font = Enum.Font.GothamBold
-    distanceText.Size = 16
-    distanceText.Color = vehicleDistanceColor
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 15
+    nameLabel.TextColor3 = vehicleNameColor
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.Text = model.Name
+    nameLabel.Visible = vehicleShowNames
+    nameLabel.Parent = billboard
 
-    espDrawingsVehicles[model] = {nameText = nameText, distanceText = distanceText}
+    local distanceLabel = Instance.new("TextLabel")
+    distanceLabel.Name = "DistanceLabel"
+    distanceLabel.BackgroundTransparency = 1
+    distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+    distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    distanceLabel.Font = Enum.Font.GothamBold
+    distanceLabel.TextSize = 15
+    distanceLabel.TextColor3 = vehicleDistanceColor
+    distanceLabel.TextStrokeTransparency = 0
+    distanceLabel.Text = ""
+    distanceLabel.Visible = vehicleShowDistance
+    distanceLabel.Parent = billboard
 
-    local camera = workspace.CurrentCamera
-
-    espConnectionsVehicles[model] = RunService.RenderStepped:Connect(function()
-        if not model or not model.Parent or not primary or not primary.Parent then
-            nameText.Visible = false
-            distanceText.Visible = false
-            if espConnectionsVehicles[model] then
-                espConnectionsVehicles[model]:Disconnect()
-                espConnectionsVehicles[model] = nil
-            end
-            nameText:Remove()
-            distanceText:Remove()
-            espDrawingsVehicles[model] = nil
-            return
-        end
-
-        local pos, onScreen = camera:WorldToViewportPoint(primary.Position + Vector3.new(0, 3, 0))
-        local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
-        local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5)
-
-        if onScreen then
-            nameText.Position = Vector2.new(pos.X, pos.Y)
-            distanceText.Position = Vector2.new(pos.X, pos.Y + 18)
-
-            nameText.Visible = vehicleShowNames
-            distanceText.Visible = vehicleShowDistance
-
-            if vehicleShowNames then
-                nameText.Text = model.Name
-                nameText.Color = vehicleNameColor
-            end
-            if vehicleShowDistance then
-                distanceText.Text = tostring(distanceMeters) .. " m"
-                distanceText.Color = vehicleDistanceColor
-            end
-        else
-            nameText.Visible = false
-            distanceText.Visible = false
-        end
-    end)
+    espVehicles[model] = {
+        model = model,
+        billboard = billboard,
+        nameLabel = nameLabel,
+        distanceLabel = distanceLabel,
+        primaryPart = primary,
+    }
 end
 
 local function updateVehicleESP(enabled)
+    if not enabled then
+        for vehicle, _ in pairs(espVehicles) do
+            removeVehicleESP(vehicle)
+        end
+        espVehicles = {}
+        return
+    end
+
     for _, vehicle in pairs(vehiclesFolder:GetChildren()) do
         if vehicle:IsA("Model") then
-            if enabled then
-                createVehicleHighlight(vehicle)
-                if vehicleShowNames or vehicleShowDistance then
-                    createVehicleNameDistance(vehicle)
-                else
-                    removeVehicleESP(vehicle)
-                end
+            createVehicleHighlight(vehicle)
+            if vehicleShowNames or vehicleShowDistance then
+                createVehicleNameDistance(vehicle)
             else
                 removeVehicleESP(vehicle)
             end
@@ -773,37 +744,66 @@ local function updateVehicleESP(enabled)
     end
 end
 
-vehiclesFolder.ChildAdded:Connect(function(newVehicle)
-    if newVehicle:IsA("Model") then
-        task.defer(function()
-            pcall(function()
-                newVehicle:WaitForChild("PrimaryPart", 3)
-            end)
-            if vehicleESPEnabled and newVehicle and newVehicle.Parent then
-                createVehicleHighlight(newVehicle)
-                if vehicleShowNames or vehicleShowDistance then
-                    createVehicleNameDistance(newVehicle)
-                end
+local renderConnection
+
+local function onRenderStep()
+    for _, data in pairs(espVehicles) do
+        local model = data.model
+        local billboard = data.billboard
+        local nameLabel = data.nameLabel
+        local distanceLabel = data.distanceLabel
+        local primary = data.primaryPart
+
+        if not model or not model.Parent or not primary or not primary.Parent then
+            removeVehicleESP(model)
+        else
+            local distanceStuds = (camera.CFrame.Position - primary.Position).Magnitude
+            local distanceMeters = math.floor(distanceStuds * 0.28 + 0.5)
+
+            nameLabel.Visible = vehicleShowNames
+            distanceLabel.Visible = vehicleShowDistance
+
+            if vehicleShowNames then
+                nameLabel.TextColor3 = vehicleNameColor
             end
-        end)
+            if vehicleShowDistance then
+                distanceLabel.Text = tostring(distanceMeters) .. " m"
+                distanceLabel.TextColor3 = vehicleDistanceColor
+            end
+        end
     end
-end)
+end
+
+local function toggleRenderConnection(state)
+    if state then
+        if not renderConnection then
+            renderConnection = RunService.RenderStepped:Connect(onRenderStep)
+        end
+    else
+        if renderConnection then
+            renderConnection:Disconnect()
+            renderConnection = nil
+        end
+    end
+end
 
 VehicleSection:Toggle({
     Name = "Vehicle Esp",
     Flag = "VehicleESP",
     Callback = function(state)
         vehicleESPEnabled = state
-        updateVehicleESP(vehicleESPEnabled)
+        updateVehicleESP(state)
+        toggleRenderConnection(state)
     end
 }):Colorpicker({
     Default = vehicleESPColor,
     Flag = "VehicleESPColor",
     Callback = function(color)
         vehicleESPColor = color
-        for _, vehicle in pairs(vehiclesFolder:GetChildren()) do
-            if vehicle:FindFirstChild("VehicleHighlight") then
-                vehicle.VehicleHighlight.FillColor = color
+        for vehicle, _ in pairs(espVehicles) do
+            local highlight = vehicle:FindFirstChild("VehicleHighlight")
+            if highlight then
+                highlight.FillColor = color
             end
         end
     end
@@ -823,9 +823,10 @@ VehicleSection:Toggle({
     Flag = "VehicleNameColor",
     Callback = function(color)
         vehicleNameColor = color
-        for _, v in pairs(espDrawingsVehicles) do
-            if v.nameText then
-                v.nameText.Color = color
+        for _, data in pairs(espVehicles) do
+            local nameLabel = data.nameLabel
+            if nameLabel then
+                nameLabel.TextColor3 = color
             end
         end
     end
@@ -845,9 +846,10 @@ VehicleSection:Toggle({
     Flag = "VehicleDistanceColor",
     Callback = function(color)
         vehicleDistanceColor = color
-        for _, v in pairs(espDrawingsVehicles) do
-            if v.distanceText then
-                v.distanceText.Color = color
+        for _, data in pairs(espVehicles) do
+            local distanceLabel = data.distanceLabel
+            if distanceLabel then
+                distanceLabel.TextColor3 = color
             end
         end
     end
@@ -1559,7 +1561,7 @@ end)
 local strafeEnabled = false
 
 local Vis = SelfChamsSection:Toggle({
-    Name = "WalkSpeed",
+    Name = "WalkSpeed (Risk)",
     Flag = "StrafeRun_Enabled",
     Callback = function(enabled)
         strafeEnabled = enabled
@@ -2498,6 +2500,143 @@ ItemsSection:Slider({
         if isItemESPEnabled then
             DisableItemESP()
             EnableItemESP()
+        end
+    end
+})
+
+local isHeliCrashESPEnabled = false
+local maxDistance = 1000
+
+local function enableHeliCrashESP()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+
+    local player = Players.LocalPlayer
+    local ESPFolder = player:WaitForChild("PlayerGui")
+
+    local TARGET_NAMES = {
+        ["SeahawkCrashsite01"] = true,
+        ["SeahawkCrashsite02"] = true,
+        ["SeahawkCrashsite03"] = true,
+        ["SeahawkCrashsite04"] = true,
+        ["SeahawkCrashsiteRogue01"] = true,
+        ["SeahawkIntactRogue01"] = true,
+        ["LongswordStone01"] = true,
+    }
+
+    local espMap = {}
+
+    local function createESP(model)
+        if not model:IsA("Model") or espMap[model] then return end
+        if not model.PrimaryPart then
+            for _, part in ipairs(model:GetChildren()) do
+                if part:IsA("BasePart") then
+                    model.PrimaryPart = part
+                    break
+                end
+            end
+        end
+        if not model.PrimaryPart then return end
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ESPBillboard"
+        billboard.Adornee = model.PrimaryPart
+        billboard.Size = UDim2.new(0, 150, 0, 50)
+        billboard.AlwaysOnTop = true
+
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextColor3 = Color3.new(1, 1, 1)
+        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        textLabel.TextStrokeTransparency = 0
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextSize = 14
+        textLabel.Parent = billboard
+
+        billboard.Parent = ESPFolder
+        espMap[model] = { Billboard = billboard, Label = textLabel }
+
+        espMap[model].Connection = RunService.RenderStepped:Connect(function()
+            if model.PrimaryPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (model.PrimaryPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                if dist <= maxDistance then
+                    local meters = math.floor(dist * 0.28)
+                    textLabel.Text = string.format("%s\n%d meters", model.Name, meters)
+                else
+                    textLabel.Text = model.Name .. "\nToo far"
+                end
+            else
+                textLabel.Text = model.Name .. "\nN/A"
+            end
+        end)
+    end
+
+    local function removeESP(model)
+        local info = espMap[model]
+        if info then
+            if info.Connection then info.Connection:Disconnect() end
+            if info.Billboard then info.Billboard:Destroy() end
+            espMap[model] = nil
+        end
+    end
+
+    for _, desc in ipairs(game:GetDescendants()) do
+        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+            createESP(desc)
+        end
+    end
+
+    game.DescendantAdded:Connect(function(desc)
+        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+            createESP(desc)
+        end
+    end)
+
+    game.DescendantRemoving:Connect(function(desc)
+        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+            removeESP(desc)
+        end
+    end)
+end
+
+local function disableHeliCrashESP()
+    for model, espData in pairs(espMap) do
+        if espData.Connection then
+            espData.Connection:Disconnect()
+        end
+        if espData.Billboard then
+            espData.Billboard:Destroy()
+        end
+    end
+    espMap = {}
+end
+
+HeliCrashSection:Toggle({
+    Name = "Heli Crash Site ESP",
+    Flag = "EnableHeliCrashESP",
+    Callback = function(state)
+        isHeliCrashESPEnabled = state
+        if isHeliCrashESPEnabled then
+            enableHeliCrashESP()
+        else
+            disableHeliCrashESP()
+        end
+    end
+})
+
+HeliCrashSection:Slider({
+    Name = "Max Distance",
+    Flag = "MaxDistance",
+    Min = 100,
+    Max = 10000,
+    Default = maxDistance,
+    Rounding = 0,
+    Callback = function(val)
+        maxDistance = val
+        if isHeliCrashESPEnabled then
+            disableHeliCrashESP()
+            enableHeliCrashESP()
         end
     end
 })
