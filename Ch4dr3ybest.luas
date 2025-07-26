@@ -2504,130 +2504,95 @@ ItemsSection:Slider({
     end
 })
 
+HeliCrashSection:Button({
+    Name = "Heli Crash Site",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
 
-local isHeliCrashESPEnabled = false
-local maxDistance = 1000
-local espMap = {}
+        local player = Players.LocalPlayer
+        local ESPFolder = player:WaitForChild("PlayerGui")
 
-local function enableHeliCrashESP()
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local player = Players.LocalPlayer
-    local ESPFolder = player:WaitForChild("PlayerGui")
+        local TARGET_NAMES = {
+            ["SeahawkCrashsite01"] = true,
+            ["SeahawkCrashsite02"] = true,
+            ["SeahawkCrashsite03"] = true,
+            ["SeahawkCrashsite04"] = true,
+            ["SeahawkCrashsiteRogue01"] = true,
+            ["SeahawkIntactRogue01"] = true,
+            ["LongswordStone01"] = true,
+        }
 
-    local TARGET_NAMES = {
-        ["SeahawkCrashsite01"] = true,
-        ["SeahawkCrashsite02"] = true,
-        ["SeahawkCrashsite03"] = true,
-        ["SeahawkCrashsite04"] = true,
-        ["SeahawkCrashsiteRogue01"] = true,
-        ["SeahawkIntactRogue01"] = true,
-        ["LongswordStone01"] = true,
-    }
+        local espMap = {}
 
-    local function createESP(model)
-        if not model:IsA("Model") or espMap[model] or not model.PrimaryPart then return end
+        local function createESP(model)
+            if not model:IsA("Model") or espMap[model] then return end
+            if not model.PrimaryPart then
+                for _, part in ipairs(model:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        model.PrimaryPart = part
+                        break
+                    end
+                end
+            end
+            if not model.PrimaryPart then return end
 
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = "ESPBillboard"
-        billboard.Adornee = model.PrimaryPart
-        billboard.Size = UDim2.new(0, 150, 0, 50)
-        billboard.AlwaysOnTop = true
-        billboard.Parent = ESPFolder
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESPBillboard"
+            billboard.Adornee = model.PrimaryPart
+            billboard.Size = UDim2.new(0, 150, 0, 50)
+            billboard.AlwaysOnTop = true
 
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Size = UDim2.new(1, 0, 1, 0)
-        textLabel.BackgroundTransparency = 1
-        textLabel.TextColor3 = Color3.new(1, 1, 1)
-        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        textLabel.TextStrokeTransparency = 0
-        textLabel.Font = Enum.Font.SourceSansBold
-        textLabel.TextSize = 14
-        textLabel.Parent = billboard
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.new(1, 1, 1)
+            textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+            textLabel.TextStrokeTransparency = 0
+            textLabel.Font = Enum.Font.SourceSansBold
+            textLabel.TextSize = 14
+            textLabel.Parent = billboard
 
-        espMap[model] = { Billboard = billboard, Label = textLabel }
+            billboard.Parent = ESPFolder
+            espMap[model] = { Billboard = billboard, Label = textLabel }
 
-        espMap[model].Connection = RunService.Heartbeat:Connect(function()
-            if model.PrimaryPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local dist = (model.PrimaryPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-                if dist <= maxDistance then
+            espMap[model].Connection = RunService.RenderStepped:Connect(function()
+                if model.PrimaryPart and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local dist = (model.PrimaryPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
                     local meters = math.floor(dist * 0.28)
                     textLabel.Text = string.format("%s\n%d meters", model.Name, meters)
                 else
-                    textLabel.Text = model.Name .. "\nToo far"
+                    textLabel.Text = model.Name .. "\nN/A"
                 end
-            else
-                textLabel.Text = model.Name .. "\nN/A"
+            end)
+        end
+
+        local function removeESP(model)
+            local info = espMap[model]
+            if info then
+                if info.Connection then info.Connection:Disconnect() end
+                if info.Billboard then info.Billboard:Destroy() end
+                espMap[model] = nil
+            end
+        end
+
+        for _, desc in ipairs(game:GetDescendants()) do
+            if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+                createESP(desc)
+            end
+        end
+
+        game.DescendantAdded:Connect(function(desc)
+            if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+                createESP(desc)
             end
         end)
-    end
 
-    local function removeESP(model)
-        local info = espMap[model]
-        if info then
-            if info.Connection then info.Connection:Disconnect() end
-            if info.Billboard then info.Billboard:Destroy() end
-            espMap[model] = nil
-        end
-    end
-
-    for _, desc in ipairs(game:GetDescendants()) do
-        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
-            createESP(desc)
-        end
-    end
-
-    game.DescendantAdded:Connect(function(desc)
-        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
-            createESP(desc)
-        end
-    end)
-
-    game.DescendantRemoving:Connect(function(desc)
-        if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
-            removeESP(desc)
-        end
-    end)
-end
-
-local function disableHeliCrashESP()
-    for model, espData in pairs(espMap) do
-        if espData.Connection then
-            espData.Connection:Disconnect()
-        end
-        if espData.Billboard then
-            espData.Billboard:Destroy()
-        end
-    end
-    espMap = {}
-end
-
-HeliCrashSection:Toggle({
-    Name = "Heli Crash Site ESP",
-    Flag = "EnableHeliCrashESP",
-    Callback = function(state)
-        isHeliCrashESPEnabled = state
-        if isHeliCrashESPEnabled then
-            enableHeliCrashESP()
-        else
-            disableHeliCrashESP()
-        end
-    end
-})
-
-HeliCrashSection:Slider({
-    Name = "Max Distance",
-    Flag = "MaxDistance",
-    Min = 100,
-    Max = 10000,
-    Default = maxDistance,
-    Rounding = 0,
-    Callback = function(val)
-        maxDistance = val
-        if isHeliCrashESPEnabled then
-            disableHeliCrashESP()
-            enableHeliCrashESP()
-        end
+        game.DescendantRemoving:Connect(function(desc)
+            if desc:IsA("Model") and TARGET_NAMES[desc.Name] then
+                removeESP(desc)
+            end
+        end)
     end
 })
 
