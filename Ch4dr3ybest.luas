@@ -162,68 +162,95 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local playerHighlights = {}
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+local highlights = {}
+local HighlightsEnabled = false
+local HighlightColor = Color3.fromRGB(255, 255, 0)
 
-local function createHighlight(player)
-    if playerHighlights[player] then return end
-    local char = player.Character
-    if not char then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "PlayerHighlightESP"
-    highlight.Adornee = char
-    highlight.FillColor = HighlightColor
-    highlight.OutlineColor = HighlightColor
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.Parent = workspace
-    playerHighlights[player] = highlight
+local function addHighlightToCharacter(character, player)
+	if not HighlightsEnabled then return end
+	if player == localPlayer then return end
+	if highlights[player] then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "PlayerHighlight"
+	highlight.FillColor = HighlightColor
+	highlight.OutlineColor = HighlightColor
+	highlight.FillTransparency = 0.5
+	highlight.OutlineTransparency = 0
+	highlight.Adornee = character
+	highlight.Parent = character
+
+	highlights[player] = highlight
 end
 
 local function removeHighlight(player)
-    if playerHighlights[player] then
-        playerHighlights[player]:Destroy()
-        playerHighlights[player] = nil
-    end
+	if highlights[player] then
+		highlights[player]:Destroy()
+		highlights[player] = nil
+	end
 end
 
-game.Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        if HighlightsEnabled then
-            createHighlight(player)
-        end
-    end)
-end)
+local function onCharacterAdded(character, player)
+	if player == localPlayer then return end
+	if character:IsDescendantOf(game) then
+		addHighlightToCharacter(character, player)
+	else
+		character.AncestryChanged:Wait()
+		addHighlightToCharacter(character, player)
+	end
+end
 
-game.Players.PlayerRemoving:Connect(function(player)
-    removeHighlight(player)
-end)
+local function onPlayerAdded(player)
+	if player == localPlayer then return end
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(character, player)
+	end)
+	if player.Character then
+		onCharacterAdded(player.Character, player)
+	end
+end
+
+local function onPlayerRemoving(player)
+	removeHighlight(player)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(player)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 Test:Toggle({
-    Name = "Chams",
-    Flag = "Highlight",
-    Default = false,
-    Callback = function(val)
-        HighlightsEnabled = val
-        for _, player in pairs(game.Players:GetPlayers()) do
-            if player ~= game.Players.LocalPlayer then
-                if val then
-                    createHighlight(player)
-                else
-                    removeHighlight(player)
-                end
-            end
-        end
-    end
+	Name = "Chams",
+	Flag = "Highlight",
+	Default = false,
+	Callback = function(val)
+		HighlightsEnabled = val
+		for _, player in pairs(Players:GetPlayers()) do
+			if player ~= localPlayer then
+				if val then
+					if player.Character then
+						addHighlightToCharacter(player.Character, player)
+					end
+				else
+					removeHighlight(player)
+				end
+			end
+		end
+	end
 }):Colorpicker({
-    Default = HighlightColor,
-    Flag = "HighlightColor",
-    Callback = function(color)
-        HighlightColor = color
-        for _, highlight in pairs(playerHighlights) do
-            highlight.FillColor = HighlightColor
-            highlight.OutlineColor = HighlightColor
-        end
-    end
+	Default = HighlightColor,
+	Flag = "HighlightColor",
+	Callback = function(color)
+		HighlightColor = color
+		for _, highlight in pairs(highlights) do
+			highlight.FillColor = HighlightColor
+			highlight.OutlineColor = HighlightColor
+		end
+	end
 })
 
 Test:Slider({
@@ -2285,48 +2312,6 @@ end
 task.spawn(setupHeadshotDetection)
 
 local zombiesFolder = workspace:WaitForChild("Zombies")
-
-local zombieHeadExpanderEnabled = false
-local zombieHeadSizeMultiplier = 2
-
-local function expandZombieHeads()
-    for _, zombie in pairs(zombiesFolder:GetChildren()) do
-        local head = zombie:FindFirstChild("Head")
-        if head and head:IsA("BasePart") then
-            head.Size = head.Size * zombieHeadSizeMultiplier
-            head.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
-        end
-    end
-end
-
-AntiZombie:Toggle({
-    Name = "Zombie Head Expander",
-    Flag = "ZombieHeadExpander",
-    Default = false,
-    Callback = function(enabled)
-        zombieHeadExpanderEnabled = enabled
-        if enabled then
-            expandZombieHeads()
-        end
-    end
-})
-
-AntiZombie:Slider({
-    Name = "Zombie Head Size",
-    Flag = "ZombieHeadSize",
-    Min = 1,
-    Max = 2,
-    Default = zombieHeadSizeMultiplier,
-    Decimals = 1,
-    Callback = function(value)
-        zombieHeadSizeMultiplier = value
-        if zombieHeadExpanderEnabled then
-            expandZombieHeads()
-        end
-    end
-})
-
-local zombiesFolder = workspace:WaitForChild("Zombies")
 _G.anti_zombie = true
 local isFreezeEnabled = true
 
@@ -2391,6 +2376,48 @@ zombiesFolder.ChildAdded:Connect(function(zombie)
         freezeZombie(zombie)
     end
 end)
+
+local zombiesFolder = workspace:WaitForChild("Zombies")
+
+local zombieHeadExpanderEnabled = false
+local zombieHeadSizeMultiplier = 2
+
+local function expandZombieHeads()
+    for _, zombie in pairs(zombiesFolder:GetChildren()) do
+        local head = zombie:FindFirstChild("Head")
+        if head and head:IsA("BasePart") then
+            head.Size = head.Size * zombieHeadSizeMultiplier
+            head.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
+        end
+    end
+end
+
+AntiZombie:Toggle({
+    Name = "Zombie Head Expander",
+    Flag = "ZombieHeadExpander",
+    Default = false,
+    Callback = function(enabled)
+        zombieHeadExpanderEnabled = enabled
+        if enabled then
+            expandZombieHeads()
+        end
+    end
+})
+
+AntiZombie:Slider({
+    Name = "Zombie Head Size",
+    Flag = "ZombieHeadSize",
+    Min = 1,
+    Max = 2,
+    Default = zombieHeadSizeMultiplier,
+    Decimals = 1,
+    Callback = function(value)
+        zombieHeadSizeMultiplier = value
+        if zombieHeadExpanderEnabled then
+            expandZombieHeads()
+        end
+    end
+})
 
 local RunService = game:GetService("RunService")
 local LootModels = game:GetService("ReplicatedStorage"):WaitForChild("Assets"):WaitForChild("LootModels")
@@ -2474,6 +2501,8 @@ local function DisableItemESP()
         childAddedConnection = nil
     end
 end
+
+
 
 ItemsSection:Toggle({
     Name = "Item ESP",
@@ -2595,5 +2624,4 @@ HeliCrashSection:Button({
         end)
     end
 })
-
 Library:LoadConfigTab(Window)
