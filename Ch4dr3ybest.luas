@@ -51,6 +51,8 @@ Test:Toggle({
     Callback = function(val) Settings.HealthBarEnabled = val end
 })
 
+
+
 Test:Toggle({
     Name = "Name Player",
     Flag = "NameESP",
@@ -2312,6 +2314,48 @@ end
 task.spawn(setupHeadshotDetection)
 
 local zombiesFolder = workspace:WaitForChild("Zombies")
+
+local zombieHeadExpanderEnabled = false
+local zombieHeadSizeMultiplier = 2
+
+local function expandZombieHeads()
+    for _, zombie in pairs(zombiesFolder:GetChildren()) do
+        local head = zombie:FindFirstChild("Head")
+        if head and head:IsA("BasePart") then
+            head.Size = head.Size * zombieHeadSizeMultiplier
+            head.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
+        end
+    end
+end
+
+AntiZombie:Toggle({
+    Name = "Zombie Head Expander",
+    Flag = "ZombieHeadExpander",
+    Default = false,
+    Callback = function(enabled)
+        zombieHeadExpanderEnabled = enabled
+        if enabled then
+            expandZombieHeads()
+        end
+    end
+})
+
+AntiZombie:Slider({
+    Name = "Zombie Head Size",
+    Flag = "ZombieHeadSize",
+    Min = 1,
+    Max = 2,
+    Default = zombieHeadSizeMultiplier,
+    Decimals = 1,
+    Callback = function(value)
+        zombieHeadSizeMultiplier = value
+        if zombieHeadExpanderEnabled then
+            expandZombieHeads()
+        end
+    end
+})
+
+local zombiesFolder = workspace:WaitForChild("Zombies")
 _G.anti_zombie = true
 local isFreezeEnabled = true
 
@@ -2376,48 +2420,6 @@ zombiesFolder.ChildAdded:Connect(function(zombie)
         freezeZombie(zombie)
     end
 end)
-
-local zombiesFolder = workspace:WaitForChild("Zombies")
-
-local zombieHeadExpanderEnabled = false
-local zombieHeadSizeMultiplier = 2
-
-local function expandZombieHeads()
-    for _, zombie in pairs(zombiesFolder:GetChildren()) do
-        local head = zombie:FindFirstChild("Head")
-        if head and head:IsA("BasePart") then
-            head.Size = head.Size * zombieHeadSizeMultiplier
-            head.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
-        end
-    end
-end
-
-AntiZombie:Toggle({
-    Name = "Zombie Head Expander",
-    Flag = "ZombieHeadExpander",
-    Default = false,
-    Callback = function(enabled)
-        zombieHeadExpanderEnabled = enabled
-        if enabled then
-            expandZombieHeads()
-        end
-    end
-})
-
-AntiZombie:Slider({
-    Name = "Zombie Head Size",
-    Flag = "ZombieHeadSize",
-    Min = 1,
-    Max = 2,
-    Default = zombieHeadSizeMultiplier,
-    Decimals = 1,
-    Callback = function(value)
-        zombieHeadSizeMultiplier = value
-        if zombieHeadExpanderEnabled then
-            expandZombieHeads()
-        end
-    end
-})
 
 local RunService = game:GetService("RunService")
 local LootModels = game:GetService("ReplicatedStorage"):WaitForChild("Assets"):WaitForChild("LootModels")
@@ -2624,4 +2626,5 @@ HeliCrashSection:Button({
         end)
     end
 })
+
 Library:LoadConfigTab(Window)
