@@ -559,6 +559,14 @@ Test:Slider({
     end
 })
 
+Test:Button({
+    Name = "Map Esp",
+    Callback = function()
+        local interfaceMap = require(game:GetService("ReplicatedFirst").Framework).Interface.Map
+        interfaceMap:EnableGodview()
+    end
+})
+
 local boxDrawings = {}
 local outlineDrawings = {}
 
@@ -1499,6 +1507,74 @@ task.spawn(function()
     end)
 end)
 
+getgenv().Speed = 45
+
+local RunService = game:GetService("RunService")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local UserInputService = game:GetService("UserInputService")
+
+local framework = require(ReplicatedFirst.Framework)
+
+local network = framework.require("Libraries", "Network")
+local players = framework.require("Classes", "Players")
+
+local localPlayer = players.get()
+
+local flying = false
+local oldState = nil
+local oldRealState = nil
+
+local originalSend = clonefunction(network.Send)
+
+UserInputService.InputBegan:Connect(function(input : InputObject, gameProcessedEvent : boolean)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.Space then
+        local character = localPlayer.Character
+        if not character then
+            return
+        end
+        local rootPart = character.RootPart
+        if not rootPart then
+            return
+        end
+        flying = true
+        while flying do
+            local deltaTime = RunService.Heartbeat:Wait()
+            rootPart.Position = rootPart.Position + Vector3.yAxis * (deltaTime * Speed)
+            rootPart.AssemblyLinearVelocity = rootPart.AssemblyLinearVelocity * Vector3.new(1, 0, 1)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input : InputObject, gameProcessedEvent : boolean)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.Space then
+        if flying then
+            flying = false
+        end
+    end
+end)
+
+hookfunction(network.Send, newcclosure(function(self : {[any] : any}, name : string, ... : any)
+    local arguments = table.pack(...)
+    if name == "Character State Report" then
+        if arguments[4] == "Falling" and flying then
+            arguments[4] = (oldState and oldState == "Climbing") and "Running" or "Climbing"
+            oldState = arguments[4]
+        else
+            oldRealState = arguments[4]
+        end
+    end
+    return originalSend(self, name, table.unpack(arguments))
+end))
+
+
+SelfChamsSection:Toggle({
+    Name = "Fly(Players Only)",
+    Flag = "Fly",
+    Callback = function(state)
+        flying = state
+    end
+})
+
 SelfChamsSection:Button({
     Name = "Noclip",
     Callback = function()
@@ -1520,97 +1596,6 @@ SelfChamsSection:Button({
         end)
     end
 })
-
-local UIS = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-
-local InfiniteJumpEnabled = false
-local SlowFallEnabled = false
-local JumpPower = 50
-local FallModifier = 0.5
-local HoldingSpace = false
-
-SelfChamsSection:Toggle({
-    Name = "Infinite Jump (Dont Spam it)",
-    Flag = "InfiniteJump/Enabled",
-    Callback = function(state)
-        InfiniteJumpEnabled = state
-    end
-})
-
-SelfChamsSection:Slider({
-    Name = "Jump Power",
-    Flag = "InfiniteJump/Power",
-    Min = 10,
-    Max = 100,
-    Default = 50,
-    Decimals = 1,
-    Callback = function(value)
-        JumpPower = value
-    end
-})
-
-SelfChamsSection:Toggle({
-    Name = "Slow Fall",
-    Flag = "SlowFall/Enabled",
-    Callback = function(state)
-        SlowFallEnabled = state
-    end
-})
-
-SelfChamsSection:Slider({
-    Name = "Fall Speed",
-    Flag = "SlowFall/Speed",
-    Min = 0.5,
-    Max = 2,
-    Default = 0.5,
-    Decimals = 0.5,
-    Callback = function(value)
-        FallModifier = value
-    end
-})
-
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Space then
-        HoldingSpace = true
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.Space then
-        HoldingSpace = false
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    local character = LocalPlayer.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local hrp = character.HumanoidRootPart
-
-        if InfiniteJumpEnabled and HoldingSpace then
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, JumpPower, hrp.Velocity.Z)
-        elseif SlowFallEnabled and hrp.Velocity.Y < 0 then
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, hrp.Velocity.Y * FallModifier, hrp.Velocity.Z)
-        end
-    end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if humanoid then
-        humanoid.JumpPower = JumpPower
-    end
-end)
-
-if LocalPlayer.Character then
-    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.JumpPower = JumpPower
-    end
-end
 
 local SelfChamsEnabled = false
 local SelfChamsColor = Color3.fromRGB(255, 255, 255)
@@ -1732,70 +1717,6 @@ end)
 
 game:GetService("RunService").RenderStepped:Connect(function()
     updateChams()
-end)
-
-local strafeEnabled = false
-
-local Vis = SelfChamsSection:Toggle({
-    Name = "WalkSpeed (Risk)",
-    Flag = "StrafeRun_Enabled",
-    Callback = function(enabled)
-        strafeEnabled = enabled
-    end
-})
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
-local player = Players.LocalPlayer
-local movement = { W = false, A = false, S = false, D = false }
-local speed = 0.20
-
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-
-
-player.CharacterAdded:Connect(function(char)
-	character = char
-	hrp = char:WaitForChild("HumanoidRootPart")
-end)
-
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	local key = input.KeyCode.Name
-	if movement[key] ~= nil then
-		movement[key] = true
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	local key = input.KeyCode.Name
-	if movement[key] ~= nil then
-		movement[key] = false
-	end
-end)
-
-
-RunService.RenderStepped:Connect(function()
-	if not strafeEnabled or not hrp then return end
-
-	local moveVector = Vector3.zero
-	local forward = hrp.CFrame.LookVector
-	local right = hrp.CFrame.RightVector
-
-	if movement.W then moveVector += forward end
-	if movement.S then moveVector -= forward end
-	if movement.A then moveVector -= right end
-	if movement.D then moveVector += right end
-
-	if moveVector.Magnitude > 0 then
-		local delta = moveVector.Unit * speed
-		local newCFrame = hrp.CFrame + Vector3.new(delta.X, 0, delta.Z)
-		character:PivotTo(newCFrame)
-	end
 end)
 
 local RunService = game:GetService("RunService")
@@ -2164,18 +2085,14 @@ worldSection:Toggle({
 })
 
 worldSection:Toggle({
-    Name = "No Fog",
-    Flag = "NoFog",
-    Callback = function(enabled)
-        if enabled then    
-            atmosphereConnection = game:GetService("Lighting").Atmosphere.Changed:Connect(function(prop)
-                if prop == "Density" then
-                    game:GetService("Lighting").Atmosphere.Density = 0
+    Name = "No Clouds",
+    Flag = "NoClouds",
+    Callback = function(state)
+        if state then
+            for i, v in pairs(workspace.Terrain:GetChildren()) do
+                if v:IsA("Clouds") then
+                    v:Destroy()
                 end
-            end)
-        else
-            if atmosphereConnection then
-                atmosphereConnection:Disconnect()
             end
         end
     end
