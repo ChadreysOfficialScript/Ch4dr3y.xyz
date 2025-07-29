@@ -12,6 +12,8 @@ local worldSection = legit:Section({ Name = "world", Side = "Right" })
 local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" })
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
+local ItemEspSection = legit:Section({ Name = "Items Esp", Side = "Left" })
+local RandomEventsSection = legit:Section({ Name = "Random Events", Side = "Right" })
 
 local Settings = {
     BoxEnabled = false,
@@ -1568,7 +1570,7 @@ end))
 
 
 SelfChamsSection:Toggle({
-    Name = "Fly(Players Only)",
+    Name = "Fly(Local player)",
     Flag = "Fly",
     Callback = function(state)
         flying = state
@@ -2563,5 +2565,121 @@ AntiZombie:Slider({
         Settings.CircleSpeed = value
     end
 })
+
+local RunService = game:GetService("RunService")
+local LootModels = game:GetService("ReplicatedStorage"):WaitForChild("Assets"):WaitForChild("LootModels")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local Settings = {
+    MaxDistance = 5000
+}
+
+local isItemESPEnabled = false
+local childAddedConnection
+
+local function createESP(model)
+    if not model:IsA("Model") then return end
+
+    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then return end
+    if primaryPart:FindFirstChild("ESP") then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = primaryPart
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Name = "ESP"
+
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.new(1, 0, 0)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Text = model.Name
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextScaled = true
+
+    billboard.Parent = primaryPart
+end
+
+local function EnableItemESP()
+    local character = localPlayer.Character
+    if not character or not character.PrimaryPart then return end
+
+    for _, model in pairs(LootModels:GetChildren()) do
+        local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if primaryPart then
+            local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
+            if distance <= Settings.MaxDistance then
+                createESP(model)
+            end
+        end
+    end
+
+    if not childAddedConnection then
+        childAddedConnection = LootModels.ChildAdded:Connect(function(model)
+            if not isItemESPEnabled then return end
+            local character = localPlayer.Character
+            if not character or not character.PrimaryPart then return end
+
+            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+            if primaryPart then
+                local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
+                if distance <= Settings.MaxDistance then
+                    createESP(model)
+                end
+            end
+        end)
+    end
+end
+
+local function DisableItemESP()
+    for _, model in pairs(LootModels:GetChildren()) do
+        local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+        if part and part:FindFirstChild("ESP") then
+            part.ESP:Destroy()
+        end
+    end
+
+    if childAddedConnection then
+        childAddedConnection:Disconnect()
+        childAddedConnection = nil
+    end
+end
+
+
+
+ItemEspSection:Toggle({
+    Name = "Item ESP",
+    Flag = "EnableItemESP",
+    Callback = function(state)
+        isItemESPEnabled = state
+        if isItemESPEnabled then
+            EnableItemESP()
+        else
+            DisableItemESP()
+        end
+    end
+})
+
+ItemEspSection:Slider({
+    Name = "Max Distance",
+    Flag = "ESP_Distance",
+    Min = 100,
+    Max = 10000,
+    Default = Settings.MaxDistance,
+    Rounding = 0,
+    Callback = function(val)
+        Settings.MaxDistance = val
+        if isItemESPEnabled then
+            DisableItemESP()
+            EnableItemESP()
+        end
+    end
+})
+
+
 
 Library:LoadConfigTab(Window)
