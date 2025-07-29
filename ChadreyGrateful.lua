@@ -13,7 +13,6 @@ local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" }
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
 local ItemEspSection = legit:Section({ Name = "Items Esp", Side = "Left" })
-local RandomEventsSection = legit:Section({ Name = "Random Events", Side = "Right" })
 
 local Settings = {
     BoxEnabled = false,
@@ -1570,7 +1569,7 @@ end))
 
 
 SelfChamsSection:Toggle({
-    Name = "Fly(Local player)",
+    Name = "Fly",
     Flag = "Fly",
     Callback = function(state)
         flying = state
@@ -2679,7 +2678,5 @@ ItemEspSection:Slider({
         end
     end
 })
-
-
 
 Library:LoadConfigTab(Window)
