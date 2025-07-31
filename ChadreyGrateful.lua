@@ -12,7 +12,6 @@ local worldSection = legit:Section({ Name = "world", Side = "Right" })
 local SelfChamsSection = legit:Section({ Name = "Local Player", Side = "Right" })
 local CorpseSection = legit:Section({ Name = "Corpse Esp", Side = "Left" })
 local VehicleSection = legit:Section({ Name = "Vehicle Esp", Side = "Left" })
-local ItemEspSection = legit:Section({ Name = "Items Esp", Side = "Left" })
 
 local Settings = {
     BoxEnabled = false,
@@ -371,91 +370,6 @@ Test:Toggle({
         Settings.DistanceColor = col
     end
 })
-
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local workspaceCharacters = workspace:WaitForChild("Characters")
-local localPlayer = Players.LocalPlayer
-
-local isHeldItemESPEnabled = false
-
-local function createOrUpdateESP(character, gunName)
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = character.HumanoidRootPart
-        local billboard = rootPart:FindFirstChild("GunESP")
-
-        if not billboard then
-            billboard = Instance.new("BillboardGui")
-            billboard.Name = "GunESP"
-            billboard.Adornee = rootPart
-            billboard.Size = UDim2.new(0, 120, 0, 40)
-            billboard.StudsOffset = Vector3.new(0, 3, 0)
-            billboard.AlwaysOnTop = true
-
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Name = "Label"
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.BackgroundTransparency = 1
-            textLabel.TextColor3 = Color3.new(1, 0, 0)
-            textLabel.TextStrokeTransparency = 0
-            textLabel.Font = Enum.Font.SourceSansBold
-            textLabel.TextScaled = true
-            textLabel.Parent = billboard
-
-            billboard.Parent = rootPart
-        end
-
-        local label = billboard:FindFirstChild("Label")
-        if label then
-            label.Text = "Holding: " .. gunName
-        end
-    end
-end
-
-local function removeESP(character)
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local esp = character.HumanoidRootPart:FindFirstChild("GunESP")
-        if esp then
-            esp:Destroy()
-        end
-    end
-end
-
-Test:Toggle({
-    Name = "Held item",
-    Flag = "HeldItemESP_Enabled",
-    Callback = function(enabled)
-        isHeldItemESPEnabled = enabled
-        if not isHeldItemESPEnabled then
-            for _, character in pairs(workspaceCharacters:GetChildren()) do
-                removeESP(character)
-            end
-        end
-    end
-})
-
-RunService.Heartbeat:Connect(function()
-    if not isHeldItemESPEnabled then return end
-
-    for _, character in pairs(workspaceCharacters:GetChildren()) do
-        if character.Name ~= localPlayer.Name then
-            local equipped = character:FindFirstChild("Equipped")
-            local holdingGun = false
-            if equipped then
-                for _, gun in pairs(equipped:GetChildren()) do
-                    if gun:IsA("BasePart") or gun:IsA("Model") then
-                        createOrUpdateESP(character, gun.Name)
-                        holdingGun = true
-                        break
-                    end
-                end
-            end
-            if not holdingGun then
-                removeESP(character)
-            end
-        end
-    end
-end)
 
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
@@ -1278,6 +1192,63 @@ gunMods:Slider({
     end
 })
 
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local FrameworkModule = require(ReplicatedFirst:WaitForChild("Framework"))
+FrameworkModule:WaitForLoaded()
+
+local Interface = FrameworkModule.Libraries.Interface
+local Network = FrameworkModule.Libraries.Network
+local Bullets = FrameworkModule.Libraries.Bullets
+
+local GetSpreadAngle = getupvalue(Bullets.Fire, 1)
+local originalFire = Bullets.Fire
+
+local noSpreadEnabled = false
+local spreadScale = 0
+
+gunMods:Toggle({
+    Name = "No Spread",
+    Flag = "No Spread",
+    Callback = function(state)
+        noSpreadEnabled = state
+    end
+})
+
+gunMods:Slider({
+    Name = "Spread Amount",
+    Flag = "SpreadAmount",
+    Min = 0,
+    Max = 100,
+    Default = 0,
+    Decimals = 1,
+    Callback = function(value)
+        spreadScale = value / 100
+    end
+})
+
+setupvalue(Bullets.Fire, 1, function(Character, CCamera, Weapon, ...)
+    if noSpreadEnabled then
+        local OldMoveState = Character.MoveState
+        local OldZooming = Character.Zooming
+        local OldFirstPerson = CCamera.FirstPerson
+
+        Character.MoveState = "Walking"
+        Character.Zooming = true
+        CCamera.FirstPerson = true
+
+        local ReturnArgs = {GetSpreadAngle(Character, CCamera, Weapon, ...)}
+
+        Character.MoveState = OldMoveState
+        Character.Zooming = OldZooming
+        CCamera.FirstPerson = OldFirstPerson
+
+        return unpack(ReturnArgs)
+    end
+
+    return GetSpreadAngle(Character, CCamera, Weapon, ...)
+end)
 
 local SilentAimEnabled = false
 local MaxDistance = 1000
@@ -1311,18 +1282,10 @@ end
 local old_fire
 local function silent_aim()
     local replicated_first = game:GetService("ReplicatedFirst")
-    local framework
+    local framework = require(replicated_first:WaitForChild("Framework"))
+    local bullets = framework.require("Libraries", "Bullets")
 
-    for _, v in pairs(getgc(true)) do
-        if typeof(v) == "table" and rawget(v, "Fire") and typeof(v.Fire) == "function" then
-            framework = v
-            break
-        end
-    end
-
-    if not framework then return end
-
-    old_fire = hookfunction(framework.Fire, function(weapon_data, character_data, _, gun_data, origin, direction, ...)
+    old_fire = hookfunction(bullets.Fire, function(weapon_data, character_data, _, gun_data, origin, direction, ...)
         if SilentAimEnabled then
             local closest_character = get_closest_player()
             if closest_character and closest_character:FindFirstChild("Head") then
@@ -1348,7 +1311,7 @@ silentAim:Slider({
     Name = "Max Distance",
     Flag = "SilentAimDistance",
     Min = 100,
-    Max = 5000,
+    Max = 2000,
     Default = MaxDistance,
     Callback = function(value)
         MaxDistance = value
@@ -2562,120 +2525,6 @@ AntiZombie:Slider({
     Rounding = 1,
     Callback = function(value)
         Settings.CircleSpeed = value
-    end
-})
-
-local RunService = game:GetService("RunService")
-local LootModels = game:GetService("ReplicatedStorage"):WaitForChild("Assets"):WaitForChild("LootModels")
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
-
-local Settings = {
-    MaxDistance = 5000
-}
-
-local isItemESPEnabled = false
-local childAddedConnection
-
-local function createESP(model)
-    if not model:IsA("Model") then return end
-
-    local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-    if not primaryPart then return end
-    if primaryPart:FindFirstChild("ESP") then return end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Adornee = primaryPart
-    billboard.Size = UDim2.new(0, 100, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Name = "ESP"
-
-    local textLabel = Instance.new("TextLabel", billboard)
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.new(1, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Text = model.Name
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextScaled = true
-
-    billboard.Parent = primaryPart
-end
-
-local function EnableItemESP()
-    local character = localPlayer.Character
-    if not character or not character.PrimaryPart then return end
-
-    for _, model in pairs(LootModels:GetChildren()) do
-        local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-        if primaryPart then
-            local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
-            if distance <= Settings.MaxDistance then
-                createESP(model)
-            end
-        end
-    end
-
-    if not childAddedConnection then
-        childAddedConnection = LootModels.ChildAdded:Connect(function(model)
-            if not isItemESPEnabled then return end
-            local character = localPlayer.Character
-            if not character or not character.PrimaryPart then return end
-
-            local primaryPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            if primaryPart then
-                local distance = (primaryPart.Position - character.PrimaryPart.Position).Magnitude
-                if distance <= Settings.MaxDistance then
-                    createESP(model)
-                end
-            end
-        end)
-    end
-end
-
-local function DisableItemESP()
-    for _, model in pairs(LootModels:GetChildren()) do
-        local part = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-        if part and part:FindFirstChild("ESP") then
-            part.ESP:Destroy()
-        end
-    end
-
-    if childAddedConnection then
-        childAddedConnection:Disconnect()
-        childAddedConnection = nil
-    end
-end
-
-
-
-ItemEspSection:Toggle({
-    Name = "Item ESP",
-    Flag = "EnableItemESP",
-    Callback = function(state)
-        isItemESPEnabled = state
-        if isItemESPEnabled then
-            EnableItemESP()
-        else
-            DisableItemESP()
-        end
-    end
-})
-
-ItemEspSection:Slider({
-    Name = "Max Distance",
-    Flag = "ESP_Distance",
-    Min = 100,
-    Max = 10000,
-    Default = Settings.MaxDistance,
-    Rounding = 0,
-    Callback = function(val)
-        Settings.MaxDistance = val
-        if isItemESPEnabled then
-            DisableItemESP()
-            EnableItemESP()
-        end
     end
 })
 
